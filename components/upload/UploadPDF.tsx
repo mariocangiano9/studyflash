@@ -58,31 +58,15 @@ export default function UploadPDF() {
     }
   }, []);
 
-  async function generate(dispensaId: string, testo: string) {
-    const effectiveTitolo = titolo || file?.name.replace(/\.pdf$/i, "") || "Dispensa";
-
-    setProgress({ pct: 25, msg: "Connessione al server..." });
-
-    const res = await fetch("/api/generate/stream", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        dispensaId,
-        testo,
-        titolo: effectiveTitolo,
-        materia: materia || undefined,
-        tags: parseTags(),
-      }),
-    });
-
-    if (!res.ok || !res.body) {
-      throw new Error("Errore nella connessione al server");
-    }
-
+  async function readSSEStream(
+    res: Response,
+    onProgress: (event: Record<string, unknown>) => void,
+    onDone: (event: Record<string, unknown>) => void,
+  ) {
+    if (!res.body) throw new Error("Nessun body nella risposta");
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    let finalResult: GenerateResult | null = null;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -99,34 +83,81 @@ export default function UploadPDF() {
 
         try {
           const event = JSON.parse(raw);
-
-          if (event.type === "progress") {
-            setProgress({ pct: event.pct, msg: event.msg });
-          } else if (event.type === "done") {
-            setProgress({ pct: 100, msg: "Completato!" });
-            const flashcard = (event.flashcard as FlashcardPreview[]).sort(
-              (a, b) => a.ordine - b.ordine
-            );
-            finalResult = {
-              dispensaId: event.dispensaId,
-              titolo: effectiveTitolo,
-              numFlashcard: event.numFlashcard,
-              flashcard,
-            };
-          } else if (event.type === "error") {
-            throw new Error(event.error);
-          }
+          if (event.type === "progress") onProgress(event);
+          else if (event.type === "done") onDone(event);
+          else if (event.type === "error") throw new Error(event.error);
         } catch (e) {
           if (e instanceof SyntaxError) continue;
           throw e;
         }
       }
     }
+  }
+
+  async function generate(dispensaId: string, testo: string) {
+    const effectiveTitolo = titolo || file?.name.replace(/\.pdf$/i, "") || "Dispensa";
+
+    // Step 1: Generate flashcards via SSE stream
+    setProgress({ pct: 5, msg: "Connessione al server..." });
+
+    const res = await fetch("/api/generate/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        dispensaId,
+        testo,
+        titolo: effectiveTitolo,
+        materia: materia || undefined,
+        tags: parseTags(),
+      }),
+    });
+
+    if (!res.ok) throw new Error("Errore nella connessione al server");
+
+    let finalResult: GenerateResult | null = null;
+
+    await readSSEStream(
+      res,
+      (event) => setProgress({ pct: Math.round((event.pct as number) * 0.8), msg: event.msg as string }),
+      (event) => {
+        const flashcard = (event.flashcard as FlashcardPreview[]).sort(
+          (a, b) => a.ordine - b.ordine
+        );
+        finalResult = {
+          dispensaId: event.dispensaId as string,
+          titolo: effectiveTitolo,
+          numFlashcard: event.numFlashcard as number,
+          flashcard,
+        };
+      },
+    );
 
     if (!finalResult) throw new Error("Nessun risultato ricevuto dal server");
 
+    // Show results immediately — flashcards are ready
     setRisultato(finalResult);
     setIsLoading(false);
+
+    // Step 2: Generate images in background (non-blocking)
+    setProgress({ pct: 85, msg: "Generazione immagini..." });
+    try {
+      const imgRes = await fetch("/api/generate/images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dispensaId }),
+      });
+
+      if (imgRes.ok) {
+        await readSSEStream(
+          imgRes,
+          (event) => setProgress({ pct: 85 + Math.round((event.pct as number) * 0.15), msg: event.msg as string }),
+          () => setProgress({ pct: 100, msg: "Completato!" }),
+        );
+      }
+    } catch (e) {
+      console.error("Errore generazione immagini:", e);
+      // Non bloccare — le flashcard sono gia salvate
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {

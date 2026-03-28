@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generaFlashcard } from "@/lib/claude/client";
-import { saveDispensa, saveFlashcards, updateFlashcardImageUrl } from "@/lib/store";
-import { generateImagesBatch } from "@/lib/dalle";
+import { saveDispensa, saveFlashcards } from "@/lib/store";
 
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,31 +33,6 @@ export async function POST(request: NextRequest) {
     }));
 
     const savedFlashcards = await saveFlashcards(dispensaId, flashcardRows);
-
-    // DALL-E images — await before responding to prevent Vercel killing the process
-    if (process.env.OPENAI_API_KEY) {
-      const imageItems = savedFlashcards
-        .filter((fc) => fc.image_prompt)
-        .map((fc) => ({ id: fc.id, prompt: fc.image_prompt! }));
-
-      if (imageItems.length > 0) {
-        for (let i = 0; i < imageItems.length; i += 3) {
-          const batch = imageItems.slice(i, i + 3);
-          const urls = await generateImagesBatch(batch, 3);
-          for (const [id, url] of urls) {
-            await updateFlashcardImageUrl(id, url).catch(console.error);
-          }
-        }
-        // Re-fetch to include image_url in response
-        const { getFlashcardsByDispensa } = await import("@/lib/store");
-        const updated = await getFlashcardsByDispensa(dispensaId);
-        return NextResponse.json({
-          dispensaId,
-          numFlashcard: updated.length,
-          flashcard: updated,
-        });
-      }
-    }
 
     return NextResponse.json({
       dispensaId,

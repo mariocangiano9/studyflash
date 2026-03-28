@@ -1,9 +1,8 @@
 import { NextRequest } from "next/server";
 import { generaFlashcardChunked } from "@/lib/claude/client";
-import { saveDispensa, saveFlashcards, updateFlashcardImageUrl } from "@/lib/store";
-import { generateImagesBatch } from "@/lib/dalle";
+import { saveDispensa, saveFlashcards } from "@/lib/store";
 
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 function sseEvent(data: Record<string, unknown>): string {
   return `data: ${JSON.stringify(data)}\n\n`;
@@ -26,7 +25,7 @@ export async function POST(request: NextRequest) {
           return;
         }
 
-        // Step 1: Save dispensa (0-10%)
+        // Step 1: Save dispensa
         send({ type: "progress", pct: 5, msg: "Caricamento dati..." });
         await saveDispensa(dispensaId, {
           titolo: titolo || "Dispensa",
@@ -35,21 +34,20 @@ export async function POST(request: NextRequest) {
         });
         send({ type: "progress", pct: 10, msg: "Dispensa salvata" });
 
-        // Step 2: Chunking (10-25%)
+        // Step 2: Generate flashcards chunk by chunk
         send({ type: "progress", pct: 15, msg: "Analisi e suddivisione testo..." });
 
-        // Step 3: Generate flashcards chunk by chunk (25-80%)
         const onChunkDone = (chunkIdx: number, totalChunks: number) => {
-          const chunkPct = 55 / totalChunks;
-          const pct = Math.round(25 + (chunkIdx + 1) * chunkPct);
+          const chunkPct = 65 / totalChunks;
+          const pct = Math.round(20 + (chunkIdx + 1) * chunkPct);
           send({
             type: "progress",
-            pct: Math.min(pct, 80),
+            pct: Math.min(pct, 85),
             msg: `Generazione flashcard... (${chunkIdx + 1}/${totalChunks})`,
           });
         };
 
-        send({ type: "progress", pct: 25, msg: "Generazione flashcard con Claude..." });
+        send({ type: "progress", pct: 20, msg: "Generazione flashcard con Claude..." });
         const flashcardGenerate = await generaFlashcardChunked(
           testo,
           titolo || "Dispensa",
@@ -65,41 +63,15 @@ export async function POST(request: NextRequest) {
           image_prompt: fc.image_prompt || "",
         }));
 
-        send({ type: "progress", pct: 82, msg: "Salvataggio flashcard..." });
+        // Step 3: Save to Supabase
+        send({ type: "progress", pct: 90, msg: "Salvataggio flashcard..." });
         const savedFlashcards = await saveFlashcards(dispensaId, flashcardRows);
 
-        // Step 4: DALL-E images (85-100%)
-        if (process.env.OPENAI_API_KEY) {
-          const imageItems = savedFlashcards
-            .filter((fc) => fc.image_prompt)
-            .map((fc) => ({ id: fc.id, prompt: fc.image_prompt! }));
-
-          if (imageItems.length > 0) {
-            send({ type: "progress", pct: 85, msg: "Generazione immagini DALL-E..." });
-            const totalBatches = Math.ceil(imageItems.length / 3);
-
-            for (let i = 0; i < imageItems.length; i += 3) {
-              const batch = imageItems.slice(i, i + 3);
-              const batchResults = await generateImagesBatch(batch, 3);
-              for (const [id, url] of batchResults) {
-                await updateFlashcardImageUrl(id, url).catch(console.error);
-              }
-              const batchNum = Math.floor(i / 3) + 1;
-              const pct = Math.round(85 + (batchNum / totalBatches) * 14);
-              send({
-                type: "progress",
-                pct: Math.min(pct, 99),
-                msg: `Immagini: batch ${batchNum}/${totalBatches}`,
-              });
-            }
-          }
-        }
-
-        // Done
+        // Done — images will be generated separately by the client
         send({
           type: "done",
           pct: 100,
-          msg: "Completato!",
+          msg: "Flashcard generate!",
           dispensaId,
           numFlashcard: savedFlashcards.length,
           flashcard: savedFlashcards,
