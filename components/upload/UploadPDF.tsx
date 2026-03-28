@@ -58,49 +58,12 @@ export default function UploadPDF() {
     }
   }, []);
 
-  async function readSSEStream(
-    res: Response,
-    onProgress: (event: Record<string, unknown>) => void,
-    onDone: (event: Record<string, unknown>) => void,
-  ) {
-    if (!res.body) throw new Error("Nessun body nella risposta");
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const raw = line.slice(6).trim();
-        if (!raw) continue;
-
-        try {
-          const event = JSON.parse(raw);
-          if (event.type === "progress") onProgress(event);
-          else if (event.type === "done") onDone(event);
-          else if (event.type === "error") throw new Error(event.error);
-        } catch (e) {
-          if (e instanceof SyntaxError) continue;
-          throw e;
-        }
-      }
-    }
-  }
-
   async function generate(dispensaId: string, testo: string) {
     const effectiveTitolo = titolo || file?.name.replace(/\.pdf$/i, "") || "Dispensa";
 
-    // Step 1: Generate flashcards via SSE stream
-    setProgress({ pct: 5, msg: "Connessione al server..." });
-
-    const res = await fetch("/api/generate/stream", {
+    // Step 1: Prepare — save dispensa and split into chunks
+    setProgress({ pct: 10, msg: "Preparazione..." });
+    const prepRes = await fetch("/api/generate/prepare", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -111,53 +74,99 @@ export default function UploadPDF() {
         tags: parseTags(),
       }),
     });
+    if (!prepRes.ok) {
+      const err = await prepRes.json();
+      throw new Error(err.error || "Errore preparazione");
+    }
+    const { totalChunks, chunkTexts } = await prepRes.json() as {
+      totalChunks: number;
+      chunkTexts: string[];
+    };
 
-    if (!res.ok) throw new Error("Errore nella connessione al server");
+    setProgress({ pct: 15, msg: `${totalChunks} segmenti da processare...` });
 
-    let finalResult: GenerateResult | null = null;
+    // Step 2: Process each chunk — one API call per chunk, each < 60s
+    const allFlashcards: FlashcardPreview[] = [];
+    for (let i = 0; i < totalChunks; i++) {
+      const pctBase = 15;
+      const pctRange = 70; // 15% to 85%
+      const pct = Math.round(pctBase + ((i + 0.5) / totalChunks) * pctRange);
+      setProgress({ pct, msg: `Generazione flashcard... (${i + 1}/${totalChunks})` });
 
-    await readSSEStream(
-      res,
-      (event) => setProgress({ pct: Math.round((event.pct as number) * 0.8), msg: event.msg as string }),
-      (event) => {
-        const flashcard = (event.flashcard as FlashcardPreview[]).sort(
-          (a, b) => a.ordine - b.ordine
-        );
-        finalResult = {
-          dispensaId: event.dispensaId as string,
-          titolo: effectiveTitolo,
-          numFlashcard: event.numFlashcard as number,
-          flashcard,
-        };
-      },
-    );
+      let chunkResult: { flashcard: FlashcardPreview[] } | null = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const chunkRes = await fetch("/api/generate/chunk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dispensaId,
+            chunkText: chunkTexts[i],
+            chunkIndex: i,
+            totalChunks,
+            titolo: effectiveTitolo,
+          }),
+        });
+        if (chunkRes.ok) {
+          chunkResult = await chunkRes.json();
+          break;
+        }
+        if (attempt === 0) console.warn(`Chunk ${i + 1} tentativo 1 fallito, riprovo...`);
+      }
 
-    if (!finalResult) throw new Error("Nessun risultato ricevuto dal server");
+      if (chunkResult?.flashcard) {
+        allFlashcards.push(...chunkResult.flashcard);
+      }
 
-    // Show results immediately — flashcards are ready
-    setRisultato(finalResult);
+      const pctDone = Math.round(pctBase + ((i + 1) / totalChunks) * pctRange);
+      setProgress({ pct: pctDone, msg: `Chunk ${i + 1}/${totalChunks} completato (${allFlashcards.length} flashcard)` });
+    }
+
+    if (allFlashcards.length === 0) throw new Error("Nessuna flashcard generata");
+
+    // Show results
+    allFlashcards.sort((a, b) => a.ordine - b.ordine);
+    const result: GenerateResult = {
+      dispensaId,
+      titolo: effectiveTitolo,
+      numFlashcard: allFlashcards.length,
+      flashcard: allFlashcards,
+    };
+    setRisultato(result);
     setIsLoading(false);
 
-    // Step 2: Generate images in background (non-blocking)
-    setProgress({ pct: 85, msg: "Generazione immagini..." });
+    // Step 3: Generate images in background (non-blocking, streaming keeps it alive)
+    setProgress({ pct: 88, msg: "Generazione immagini..." });
     try {
       const imgRes = await fetch("/api/generate/images", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dispensaId }),
       });
-
-      if (imgRes.ok) {
-        await readSSEStream(
-          imgRes,
-          (event) => setProgress({ pct: 85 + Math.round((event.pct as number) * 0.15), msg: event.msg as string }),
-          () => setProgress({ pct: 100, msg: "Completato!" }),
-        );
+      if (imgRes.ok && imgRes.body) {
+        const reader = imgRes.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() || "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            try {
+              const ev = JSON.parse(line.slice(6));
+              if (ev.type === "progress") {
+                setProgress({ pct: 88 + Math.round((ev.pct as number) * 0.12), msg: ev.msg as string });
+              }
+            } catch { /* skip */ }
+          }
+        }
       }
-    } catch (e) {
-      console.error("Errore generazione immagini:", e);
-      // Non bloccare — le flashcard sono gia salvate
+    } catch {
+      // Non bloccare — flashcard già salvate
     }
+    setProgress({ pct: 100, msg: "Completato!" });
   }
 
   async function handleSubmit(e: React.FormEvent) {
