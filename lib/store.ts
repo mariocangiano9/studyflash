@@ -2,7 +2,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 
 const db = () => supabaseAdmin();
 
-const FC_COLS = "id, titolo, testo, tag, difficolta, ordine, importante, image_url, image_prompt, last_seen_at, dispensa_id";
+const FC_COLS = "id, titolo, testo, tag, difficolta, ordine, importante, image_url, image_prompt, last_seen_at, dispensa_id, colore";
 
 export interface StoredFlashcard {
   id: string;
@@ -16,6 +16,7 @@ export interface StoredFlashcard {
   image_prompt: string | null;
   last_seen_at: string | null;
   dispensa_id?: string;
+  colore?: string | null;
 }
 
 export interface StoredDispensa {
@@ -23,6 +24,7 @@ export interface StoredDispensa {
   titolo: string;
   materia: string | null;
   tags: string[] | null;
+  colore: string | null;
   createdAt: string;
   numFlashcard: number;
 }
@@ -65,7 +67,7 @@ export async function getDispensa(dispensaId: string) {
 export async function getAllDispense(): Promise<StoredDispensa[]> {
   const { data, error } = await db()
     .from("dispense")
-    .select("id, titolo, materia, tags, num_flashcard, created_at")
+    .select("id, titolo, materia, tags, colore, num_flashcard, created_at")
     .order("created_at", { ascending: false });
 
   if (error || !data) return [];
@@ -74,6 +76,7 @@ export async function getAllDispense(): Promise<StoredDispensa[]> {
     titolo: d.titolo,
     materia: d.materia,
     tags: d.tags,
+    colore: d.colore,
     createdAt: d.created_at,
     numFlashcard: d.num_flashcard,
   }));
@@ -86,6 +89,22 @@ export async function deleteDispensa(dispensaId: string): Promise<boolean> {
     .eq("id", dispensaId);
 
   return !error;
+}
+
+export async function updateDispensaColore(dispensaId: string, colore: string) {
+  // Update dispensa
+  const { error: e1 } = await db()
+    .from("dispense")
+    .update({ colore })
+    .eq("id", dispensaId);
+  if (e1) throw new Error(`Errore aggiornamento colore dispensa: ${e1.message}`);
+
+  // Update all flashcards of this dispensa
+  const { error: e2 } = await db()
+    .from("flashcard")
+    .update({ colore })
+    .eq("dispensa_id", dispensaId);
+  if (e2) throw new Error(`Errore aggiornamento colore flashcard: ${e2.message}`);
 }
 
 export async function updateDispensaMateria(dispensaId: string, materia: string) {

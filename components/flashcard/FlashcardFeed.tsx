@@ -12,6 +12,7 @@ interface FeedCard {
   ordine: number;
   importante?: boolean;
   image_url?: string | null;
+  colore?: string | null;
   dispensa_id?: string;
   materia: string;
 }
@@ -287,6 +288,7 @@ export default function FlashcardFeed({ dispensaId }: { dispensaId?: string }) {
                 dispensaId={fc.dispensa_id}
                 inizialmenteImportante={fc.importante ?? false}
                 imageUrl={fc.image_url}
+                colore={fc.colore}
                 onDeleted={handleCardDeleted}
               />
             </div>

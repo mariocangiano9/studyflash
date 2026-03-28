@@ -14,6 +14,7 @@ interface FlashcardItemProps {
   dispensaId?: string;
   inizialmenteImportante?: boolean;
   imageUrl?: string | null;
+  colore?: string | null;
   onDeleted?: (id: string) => void;
 }
 
@@ -79,6 +80,7 @@ export default function FlashcardItem({
   dispensaId,
   inizialmenteImportante = false,
   imageUrl,
+  colore,
   onDeleted,
 }: FlashcardItemProps) {
   const [imgError, setImgError] = useState(false);
@@ -148,7 +150,10 @@ export default function FlashcardItem({
 
   return (
     <>
-      <article className="overflow-hidden rounded-2xl bg-white shadow-md shadow-zinc-200/60">
+      <article
+        className="overflow-hidden rounded-2xl shadow-md shadow-zinc-200/60"
+        style={{ backgroundColor: colore || "#FFFFFF" }}
+      >
         {/* Banner image */}
         <div className="relative w-full" style={{ aspectRatio: "16 / 5" }}>
           {hasImage ? (

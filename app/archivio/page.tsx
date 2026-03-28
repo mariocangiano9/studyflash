@@ -19,9 +19,16 @@ interface DispensaInfo {
   titolo: string;
   materia?: string;
   tags?: string[] | null;
+  colore?: string | null;
   numFlashcard: number;
   createdAt: string;
 }
+
+const COLORI_PALETTE = [
+  "#EEF2FF", "#F0FDF4", "#FFF7ED", "#FAF5FF", "#ECFEFF",
+  "#EFF6FF", "#F0F9FF", "#FFF1F2", "#FFFBEB", "#FDF4FF",
+  "#F9FAFB", "#FFFFFF",
+];
 
 export default function ArchivioPage() {
   const [dispense, setDispense] = useState<DispensaInfo[]>([]);
@@ -45,6 +52,9 @@ export default function ArchivioPage() {
   const [editingMateriaId, setEditingMateriaId] = useState<string | null>(null);
   const [materiaInput, setMateriaInput] = useState("");
   const [savingMateria, setSavingMateria] = useState(false);
+
+  // Color picker state
+  const [colorPickerOpen, setColorPickerOpen] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/archivio")
@@ -201,6 +211,19 @@ export default function ArchivioPage() {
     }
   }
 
+  async function salvaColore(dispensaId: string, colore: string) {
+    setColorPickerOpen(null);
+    // Optimistic update
+    setDispense((prev) =>
+      prev.map((d) => d.dispensaId === dispensaId ? { ...d, colore } : d)
+    );
+    await fetch(`/api/archivio/${dispensaId}/colore`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ colore }),
+    }).catch(console.error);
+  }
+
   function formatData(iso: string) {
     try {
       return new Date(iso).toLocaleDateString("it-IT", {
@@ -246,7 +269,34 @@ export default function ArchivioPage() {
               <div className="p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h2 className="text-base font-bold text-zinc-900 leading-snug">{d.titolo}</h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold text-zinc-900 leading-snug">{d.titolo}</h2>
+                      {/* Color picker trigger */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setColorPickerOpen(colorPickerOpen === d.dispensaId ? null : d.dispensaId)}
+                          className="h-5 w-5 shrink-0 rounded-full border-2 border-white shadow-sm ring-1 ring-zinc-200 transition-transform hover:scale-110"
+                          style={{ backgroundColor: d.colore || "#F9FAFB" }}
+                          title="Cambia colore"
+                        />
+                        {colorPickerOpen === d.dispensaId && (
+                          <div className="absolute left-0 top-7 z-20 rounded-xl bg-white p-2 shadow-lg ring-1 ring-zinc-200">
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {COLORI_PALETTE.map((c) => (
+                                <button
+                                  key={c}
+                                  onClick={() => salvaColore(d.dispensaId, c)}
+                                  className={`h-7 w-7 rounded-full border-2 transition-transform hover:scale-110 ${
+                                    (d.colore || "#F9FAFB") === c ? "border-blue-500 ring-2 ring-blue-200" : "border-white ring-1 ring-zinc-200"
+                                  }`}
+                                  style={{ backgroundColor: c }}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
                       {d.materia ? (
                         <button
