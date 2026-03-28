@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PDFParse } from "pdf-parse";
+import { extractText } from "unpdf";
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,12 +14,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Estrai testo dal PDF
     const arrayBuffer = await file.arrayBuffer();
-    const pdfParser = new PDFParse({ data: new Uint8Array(arrayBuffer) });
-    const textResult = await pdfParser.getText();
-    const testo = textResult.text.trim();
-    await pdfParser.destroy();
+    const { totalPages, text } = await extractText(new Uint8Array(arrayBuffer));
+    const testo = (Array.isArray(text) ? text.join("\n") : text).trim();
 
     if (!testo) {
       return NextResponse.json(
@@ -30,13 +27,13 @@ export async function POST(request: NextRequest) {
 
     const dispensaId = crypto.randomUUID();
 
-    console.log(`[pdf] Pagine: ${textResult.total}, Chars estratti: ${testo.length}, File: ${file.name}`);
+    console.log(`[pdf] Pagine: ${totalPages}, Chars estratti: ${testo.length}, File: ${file.name}`);
 
     return NextResponse.json({
       dispensaId,
       titolo,
-      testo, // Nessun limite — il chunking in Claude gestisce testi di qualsiasi lunghezza
-      numPagine: textResult.total,
+      testo,
+      numPagine: totalPages,
     });
   } catch (error) {
     console.error("Errore upload:", error);
