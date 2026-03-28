@@ -21,7 +21,7 @@ const MOCK_QUIZ: Omit<QuizGenerato, "flashcard_id">[] = [
 
 const SYSTEM_PROMPT = `Sei un professore universitario esperto di didattica. Crei post informativi da dispense universitarie italiane, come post di Instagram dedicati allo studio.`;
 
-const MAX_CHARS_PER_CHUNK = 12000;
+const MAX_CHARS_PER_CHUNK = 4000;
 
 // ── Chunking ──
 
@@ -120,24 +120,24 @@ async function generaFlashcardChunk(
     messages: [
       {
         role: "user",
-        content: `Questo è il SEGMENTO ${chunkIndex + 1} di ${totalChunks} del documento "${titolo}".
+        content: `Segmento ${chunkIndex + 1}/${totalChunks} del documento "${titolo}".
 
-Genera una flashcard per OGNI singolo concetto, definizione, articolo, principio, regola o argomento presente in questo segmento. Nessuno escluso. Non fare riassunti: tratta ogni argomento come flashcard separata. Se un paragrafo contiene 3 concetti, genera 3 flashcard distinte.
+ISTRUZIONI FONDAMENTALI:
+Analizza OGNI FRASE di questo testo. Per ogni definizione, articolo, principio, istituto, procedura, concetto, evento storico, o nozione genera UNA flashcard separata. Non raggruppare mai più concetti in una flashcard. Non saltare nulla. Se hai dubbi se un concetto merita una flashcard, generala comunque.
 
-LINGUA: sempre italiano, anche se il testo è in inglese.
+LINGUA: sempre italiano.
 
-STRUTTURA OGNI FLASHCARD:
-- titolo: nome del concetto chiaro e diretto (max 8 parole, NON una domanda)
-- testo: COMPATTO, max 8-10 righe su mobile. Struttura:
-    1-2 frasi di spiegazione principale.
-    Se ci sono elementi enumerabili (caratteristiche, requisiti, fasi, tipi...) usa elenco puntato con "\\n• " (max 4-5 punti, 1 riga ciascuno).
-    1 frase di esempio pratico (inizia con "\\nAd esempio, ").
-    1 frase di contesto normativo/storico SOLO se essenziale (inizia con "\\nNel contesto ").
-    Usa "\\n" per gli a capo tra sezioni.
-- tag: 2-4 keyword pertinenti (array di stringhe)
-- ordine: intero progressivo partendo da ${startOrdine}
+STRUTTURA:
+- titolo: concetto chiaro e diretto (max 8 parole, NO domande)
+- testo: COMPATTO, max 8-10 righe. Struttura:
+    1-2 frasi di spiegazione.
+    Se enumerabile: "\\n• " (max 4-5 punti, 1 riga ciascuno).
+    "\\nAd esempio, " 1 frase esempio pratico.
+    "\\nNel contesto " 1 frase contesto solo se essenziale.
+- tag: 2-4 keyword
+- ordine: intero progressivo da ${startOrdine}
 - difficolta: "facile" | "media" | "difficile"
-- image_prompt: prompt in inglese per DALL-E, immagine evocativa del concetto, stile "editorial photography, clean background", max 20 parole
+- image_prompt: inglese, DALL-E, "editorial photography, clean background", max 20 parole
 
 OUTPUT: solo array JSON puro, nessun testo prima o dopo, nessun markdown.
 [

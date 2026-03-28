@@ -47,23 +47,24 @@ export async function POST(request: NextRequest) {
         messages: [
           {
             role: "user",
-            content: `Questo è il SEGMENTO ${chunkIndex + 1} di ${totalChunks} del documento "${titolo || "Dispensa"}".
+            content: `Segmento ${chunkIndex + 1}/${totalChunks} del documento "${titolo || "Dispensa"}".
 
-Genera una flashcard per OGNI singolo concetto, definizione, articolo, principio, regola o argomento presente in questo segmento. Nessuno escluso. Non fare riassunti: tratta ogni argomento come flashcard separata.
+ISTRUZIONI FONDAMENTALI:
+Analizza OGNI FRASE di questo testo. Per ogni definizione, articolo, principio, istituto, procedura, concetto, evento storico, o nozione genera UNA flashcard separata. Non raggruppare mai più concetti in una flashcard. Non saltare nulla. Se hai dubbi se un concetto merita una flashcard, generala comunque.
 
-LINGUA: sempre italiano, anche se il testo è in inglese.
+LINGUA: sempre italiano.
 
-STRUTTURA OGNI FLASHCARD:
-- titolo: nome del concetto chiaro e diretto (max 8 parole, NON una domanda)
-- testo: COMPATTO, max 8-10 righe su mobile. Struttura:
-    1-2 frasi di spiegazione principale.
-    Se ci sono elementi enumerabili usa "\\n• " (max 4-5 punti, 1 riga ciascuno).
-    1 frase esempio pratico ("\\nAd esempio, ").
-    1 frase contesto se essenziale ("\\nNel contesto ").
-- tag: 2-4 keyword (array di stringhe)
+STRUTTURA:
+- titolo: concetto chiaro e diretto (max 8 parole, NO domande)
+- testo: COMPATTO, max 8-10 righe. Struttura:
+    1-2 frasi di spiegazione.
+    Se enumerabile: "\\n• " (max 4-5 punti, 1 riga ciascuno).
+    "\\nAd esempio, " 1 frase esempio pratico.
+    "\\nNel contesto " 1 frase contesto solo se essenziale.
+- tag: 2-4 keyword
 - ordine: intero progressivo da ${startOrdine}
 - difficolta: "facile" | "media" | "difficile"
-- image_prompt: prompt inglese per DALL-E, "editorial photography, clean background", max 20 parole
+- image_prompt: inglese, DALL-E, "editorial photography, clean background", max 20 parole
 
 OUTPUT: solo array JSON puro.
 
