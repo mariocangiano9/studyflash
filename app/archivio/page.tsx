@@ -25,9 +25,10 @@ interface DispensaInfo {
 }
 
 const COLORI_PALETTE = [
-  "#EEF2FF", "#F0FDF4", "#FFF7ED", "#FAF5FF", "#ECFEFF",
-  "#EFF6FF", "#F0F9FF", "#FFF1F2", "#FFFBEB", "#FDF4FF",
-  "#F9FAFB", "#FFFFFF",
+  "#EEF2FF", "#E0E7FF", "#DBEAFE", "#EFF6FF", "#F0F9FF", "#ECFEFF",
+  "#F0FDF4", "#DCFCE7", "#D1FAE5", "#CCFBF1", "#CFFAFE", "#E0F2FE",
+  "#FFFBEB", "#FEF9C3", "#FFF7ED", "#FFEDD5", "#FEE2E2", "#FFF1F2",
+  "#FAF5FF", "#F5F3FF", "#FDF4FF", "#FCE7F3", "#F9FAFB", "#F3F4F6",
 ];
 
 export default function ArchivioPage() {
@@ -280,20 +281,27 @@ export default function ArchivioPage() {
                           title="Cambia colore"
                         />
                         {colorPickerOpen === d.dispensaId && (
-                          <div className="absolute left-0 top-7 z-20 rounded-xl bg-white p-2 shadow-lg ring-1 ring-zinc-200">
-                            <div className="grid grid-cols-4 gap-1.5">
-                              {COLORI_PALETTE.map((c) => (
-                                <button
-                                  key={c}
-                                  onClick={() => salvaColore(d.dispensaId, c)}
-                                  className={`h-7 w-7 rounded-full border-2 transition-transform hover:scale-110 ${
-                                    (d.colore || "#F9FAFB") === c ? "border-blue-500 ring-2 ring-blue-200" : "border-white ring-1 ring-zinc-200"
-                                  }`}
-                                  style={{ backgroundColor: c }}
-                                />
-                              ))}
+                          <>
+                            {/* Backdrop to close on outside click */}
+                            <div className="fixed inset-0 z-10" onClick={() => setColorPickerOpen(null)} />
+                            {/* Palette popover */}
+                            <div className="absolute left-0 top-8 z-20 rounded-xl bg-white p-3 shadow-xl ring-1 ring-zinc-200">
+                              <div className="grid grid-cols-6 gap-1.5" style={{ width: 228 }}>
+                                {COLORI_PALETTE.map((c) => (
+                                  <button
+                                    key={c}
+                                    onClick={() => salvaColore(d.dispensaId, c)}
+                                    className={`h-8 w-8 rounded-full transition-transform hover:scale-110 ${
+                                      (d.colore || "#F9FAFB") === c
+                                        ? "border-[2.5px] border-blue-500 shadow-sm"
+                                        : "border border-zinc-200"
+                                    }`}
+                                    style={{ backgroundColor: c }}
+                                  />
+                                ))}
+                              </div>
                             </div>
-                          </div>
+                          </>
                         )}
                       </div>
                     </div>
