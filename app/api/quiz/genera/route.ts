@@ -15,6 +15,8 @@ export async function POST(request: NextRequest) {
         : [];
     const numDomande = body.numDomande;
 
+    console.log("[quiz/genera] dispensaIds:", dispensaIds, "numDomande:", numDomande);
+
     if (dispensaIds.length === 0) {
       return NextResponse.json({ error: "dispensaId o dispensaIds richiesto" }, { status: 400 });
     }
@@ -24,6 +26,7 @@ export async function POST(request: NextRequest) {
       dispensaIds.map((id: string) => getFlashcardsByDispensa(id))
     );
     const flashcards = allFlashcardsArrays.flat();
+    console.log("[quiz/genera] flashcards trovate:", flashcards.length);
 
     if (flashcards.length === 0) {
       return NextResponse.json(
@@ -40,11 +43,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate quiz questions via Claude with retry + extra flashcards
+    console.log("[quiz/genera] selezionate:", selected.length, "-> invio a Claude");
     const allMapped = flashcards.map((fc) => ({ id: fc.id, titolo: fc.titolo, testo: fc.testo }));
     const quizResults = await generaQuizBatch(
       selected.map((fc) => ({ id: fc.id, titolo: fc.titolo, testo: fc.testo })),
       allMapped
     );
+    console.log("[quiz/genera] domande generate:", quizResults.length);
 
     // Save to Supabase
     if (quizResults.length > 0) {
