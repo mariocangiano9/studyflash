@@ -23,12 +23,16 @@ interface DispensaFilter {
   titolo: string;
 }
 
+const PAGE_SIZE = 50;
+
 export default function FlashcardFeed({ dispensaId, savedMode }: { dispensaId?: string; savedMode?: boolean }) {
   const [cards, setCards] = useState<FeedCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [errore, setErrore] = useState("");
-  const [allSeen, setAllSeen] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
   const seenRef = useRef(new Set<string>());
 
   // Filter state
@@ -44,6 +48,7 @@ export default function FlashcardFeed({ dispensaId, savedMode }: { dispensaId?: 
   const [pullY, setPullY] = useState(0);
   const [pulling, setPulling] = useState(false);
   const touchStartY = useRef(0);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // Load dispense list for filters (only for global feed)
   useEffect(() => {
@@ -64,6 +69,16 @@ export default function FlashcardFeed({ dispensaId, savedMode }: { dispensaId?: 
     return () => window.removeEventListener("scroll", handler);
   }, []);
 
+  const buildParams = useCallback((filterIds?: Set<string>, tagFilter?: string | null) => {
+    const ids = filterIds ?? selectedIds;
+    const tag = tagFilter !== undefined ? tagFilter : activeTag;
+    const params = new URLSearchParams();
+    if (ids.size > 0) params.set("dispensaIds", Array.from(ids).join(","));
+    if (tag) params.set("tag", tag);
+    if (savedMode) params.set("saved", "true");
+    return params;
+  }, [selectedIds, activeTag, savedMode]);
+
   const loadFeed = useCallback(async (filterIds?: Set<string>, tagFilter?: string | null) => {
     try {
       if (dispensaId) {
@@ -75,38 +90,58 @@ export default function FlashcardFeed({ dispensaId, savedMode }: { dispensaId?: 
           materia: data.titolo || "Dispensa",
         }));
         setCards(mapped);
-        setAllSeen(false);
+        setHasMore(false);
+        setTotal(mapped.length);
       } else {
-        const ids = filterIds ?? selectedIds;
-        const tag = tagFilter !== undefined ? tagFilter : activeTag;
-        const params = new URLSearchParams();
-        if (ids.size > 0) params.set("dispensaIds", Array.from(ids).join(","));
-        if (tag) params.set("tag", tag);
-        if (savedMode) params.set("saved", "true");
-        const qs = params.toString() ? `?${params}` : "";
-        const res = await fetch(`/api/flashcard${qs}`);
+        const params = buildParams(filterIds, tagFilter);
+        params.set("offset", "0");
+        params.set("limit", String(PAGE_SIZE));
+        const res = await fetch(`/api/flashcard?${params}`);
         if (!res.ok) throw new Error("Nessuna flashcard disponibile");
         const data = await res.json();
         setCards(data.feed);
-        setAllSeen(data.allSeen);
+        setHasMore(data.hasMore);
+        setTotal(data.total);
       }
       setErrore("");
       seenRef.current.clear();
     } catch (err) {
       setErrore(err instanceof Error ? err.message : "Errore");
     }
-  }, [dispensaId, selectedIds, activeTag]);
+  }, [dispensaId, buildParams]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || dispensaId) return;
+    setLoadingMore(true);
+    try {
+      const params = buildParams();
+      params.set("offset", String(cards.length));
+      params.set("limit", String(PAGE_SIZE));
+      const res = await fetch(`/api/flashcard?${params}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setCards((prev) => [...prev, ...data.feed]);
+      setHasMore(data.hasMore);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, dispensaId, cards.length, buildParams]);
 
   useEffect(() => {
     loadFeed().finally(() => setLoading(false));
   }, [loadFeed]);
 
-  // Auto-reset when all seen
+  // Infinite scroll — trigger loadMore when sentinel is visible
   useEffect(() => {
-    if (allSeen && cards.length > 0) {
-      fetch("/api/flashcard/seen/reset", { method: "DELETE" }).then(() => loadFeed());
-    }
-  }, [allSeen, cards.length, loadFeed]);
+    const el = sentinelRef.current;
+    if (!el || !hasMore) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) loadMore(); },
+      { rootMargin: "300px" }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasMore, loadMore]);
 
   // Filter toggle
   const toggleFilter = (id: string) => {
@@ -305,27 +340,42 @@ export default function FlashcardFeed({ dispensaId, savedMode }: { dispensaId?: 
           <p className="text-sm text-zinc-500">Nessuna flashcard per questa selezione</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-5">
-          {cards.map((fc) => (
-            <div key={fc.id} ref={cardRef} data-card-id={fc.id}>
-              <FlashcardItem
-                id={fc.id.replace(/-imp$/, "")}
-                titolo={fc.titolo}
-                testo={fc.testo}
-                tag={fc.tag}
-                difficolta={fc.difficolta}
-                materia={fc.materia}
-                dispensaId={fc.dispensa_id}
-                inizialmenteImportante={fc.importante ?? false}
-                inizialmenteSalvato={fc.salvato ?? false}
-                imageUrl={fc.image_url}
-                colore={fc.colore}
-                onDeleted={handleCardDeleted}
-                onTagClick={handleTagClick}
-              />
+        <>
+          <div className="flex flex-col gap-5">
+            {cards.map((fc) => (
+              <div key={fc.id} ref={cardRef} data-card-id={fc.id}>
+                <FlashcardItem
+                  id={fc.id.replace(/-imp$/, "")}
+                  titolo={fc.titolo}
+                  testo={fc.testo}
+                  tag={fc.tag}
+                  difficolta={fc.difficolta}
+                  materia={fc.materia}
+                  dispensaId={fc.dispensa_id}
+                  inizialmenteImportante={fc.importante ?? false}
+                  inizialmenteSalvato={fc.salvato ?? false}
+                  imageUrl={fc.image_url}
+                  colore={fc.colore}
+                  onDeleted={handleCardDeleted}
+                  onTagClick={handleTagClick}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* Infinite scroll sentinel */}
+          {hasMore && (
+            <div ref={sentinelRef} className="flex justify-center py-6">
+              {loadingMore && (
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+              )}
             </div>
-          ))}
-        </div>
+          )}
+
+          {!hasMore && cards.length > 0 && total > PAGE_SIZE && (
+            <p className="py-6 text-center text-xs text-zinc-400">{total} flashcard totali</p>
+          )}
+        </>
       )}
 
       {/* Scroll to top button */}

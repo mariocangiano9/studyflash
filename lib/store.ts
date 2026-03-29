@@ -204,25 +204,37 @@ export async function getFlashcardsByDispensa(dispensaId: string): Promise<Store
 }
 
 export async function getAllFlashcardsForFeed(opts?: { dispensaIds?: string[]; tag?: string; saved?: boolean }): Promise<(StoredFlashcard & { materia: string })[]> {
-  let query = db()
-    .from("flashcard")
-    .select(`${FC_COLS}, dispense!inner(titolo, materia)`)
-    .order("created_at", { ascending: false });
+  const PAGE_SIZE = 1000;
+  const allData: Record<string, unknown>[] = [];
+  let from = 0;
 
-  if (opts?.dispensaIds && opts.dispensaIds.length > 0) {
-    query = query.in("dispensa_id", opts.dispensaIds);
-  }
-  if (opts?.tag) {
-    query = query.contains("tag", [opts.tag]);
-  }
-  if (opts?.saved) {
-    query = query.eq("salvato", true);
+  // Paginate to fetch ALL rows (Supabase default limit = 1000)
+  while (true) {
+    let query = db()
+      .from("flashcard")
+      .select(`${FC_COLS}, dispense!inner(titolo, materia)`)
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE_SIZE - 1);
+
+    if (opts?.dispensaIds && opts.dispensaIds.length > 0) {
+      query = query.in("dispensa_id", opts.dispensaIds);
+    }
+    if (opts?.tag) {
+      query = query.contains("tag", [opts.tag]);
+    }
+    if (opts?.saved) {
+      query = query.eq("salvato", true);
+    }
+
+    const { data, error } = await query;
+    if (error || !data || data.length === 0) break;
+
+    allData.push(...data);
+    if (data.length < PAGE_SIZE) break; // Last page
+    from += PAGE_SIZE;
   }
 
-  const { data, error } = await query;
-
-  if (error || !data) return [];
-  return data.map((fc) => {
+  return allData.map((fc) => {
     const dispensa = fc.dispense as unknown as { titolo: string; materia: string | null };
     return {
       ...(fc as unknown as StoredFlashcard),

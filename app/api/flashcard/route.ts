@@ -7,6 +7,8 @@ export async function GET(request: NextRequest) {
   const dispensaIdsParam = searchParams.get("dispensaIds");
   const tag = searchParams.get("tag") || undefined;
   const saved = searchParams.get("saved") === "true" || undefined;
+  const offset = parseInt(searchParams.get("offset") || "0", 10);
+  const limit = parseInt(searchParams.get("limit") || "50", 10);
   const dispensaIds = dispensaIdsParam
     ? dispensaIdsParam.split(",").filter(Boolean)
     : undefined;
@@ -18,7 +20,13 @@ export async function GET(request: NextRequest) {
   }
 
   const feed = buildSmartFeed(allCards);
-  const allSeen = allCards.every((c) => c.last_seen_at !== null);
+  const page = feed.slice(offset, offset + limit);
+  const hasMore = offset + limit < feed.length;
 
-  return NextResponse.json({ feed, allSeen });
+  return NextResponse.json({
+    feed: page,
+    total: feed.length,
+    hasMore,
+    offset,
+  });
 }
