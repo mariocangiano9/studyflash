@@ -11,6 +11,7 @@ interface FeedCard {
   difficolta: "facile" | "media" | "difficile";
   ordine: number;
   importante?: boolean;
+  salvato?: boolean;
   image_url?: string | null;
   colore?: string | null;
   dispensa_id?: string;
@@ -22,7 +23,7 @@ interface DispensaFilter {
   titolo: string;
 }
 
-export default function FlashcardFeed({ dispensaId }: { dispensaId?: string }) {
+export default function FlashcardFeed({ dispensaId, savedMode }: { dispensaId?: string; savedMode?: boolean }) {
   const [cards, setCards] = useState<FeedCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -33,6 +34,7 @@ export default function FlashcardFeed({ dispensaId }: { dispensaId?: string }) {
   // Filter state
   const [dispense, setDispense] = useState<DispensaFilter[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [activeTag, setActiveTag] = useState<string | null>(null);
 
   // Scroll-to-top
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -62,7 +64,7 @@ export default function FlashcardFeed({ dispensaId }: { dispensaId?: string }) {
     return () => window.removeEventListener("scroll", handler);
   }, []);
 
-  const loadFeed = useCallback(async (filterIds?: Set<string>) => {
+  const loadFeed = useCallback(async (filterIds?: Set<string>, tagFilter?: string | null) => {
     try {
       if (dispensaId) {
         const res = await fetch(`/api/flashcard/${dispensaId}`);
@@ -76,8 +78,13 @@ export default function FlashcardFeed({ dispensaId }: { dispensaId?: string }) {
         setAllSeen(false);
       } else {
         const ids = filterIds ?? selectedIds;
-        const params = ids.size > 0 ? `?dispensaIds=${Array.from(ids).join(",")}` : "";
-        const res = await fetch(`/api/flashcard${params}`);
+        const tag = tagFilter !== undefined ? tagFilter : activeTag;
+        const params = new URLSearchParams();
+        if (ids.size > 0) params.set("dispensaIds", Array.from(ids).join(","));
+        if (tag) params.set("tag", tag);
+        if (savedMode) params.set("saved", "true");
+        const qs = params.toString() ? `?${params}` : "";
+        const res = await fetch(`/api/flashcard${qs}`);
         if (!res.ok) throw new Error("Nessuna flashcard disponibile");
         const data = await res.json();
         setCards(data.feed);
@@ -88,7 +95,7 @@ export default function FlashcardFeed({ dispensaId }: { dispensaId?: string }) {
     } catch (err) {
       setErrore(err instanceof Error ? err.message : "Errore");
     }
-  }, [dispensaId, selectedIds]);
+  }, [dispensaId, selectedIds, activeTag]);
 
   useEffect(() => {
     loadFeed().finally(() => setLoading(false));
@@ -117,6 +124,18 @@ export default function FlashcardFeed({ dispensaId }: { dispensaId?: string }) {
     setSelectedIds(new Set());
     setLoading(true);
     loadFeed(new Set()).finally(() => setLoading(false));
+  };
+
+  const handleTagClick = (tag: string) => {
+    setActiveTag(tag);
+    setLoading(true);
+    loadFeed(selectedIds, tag).finally(() => setLoading(false));
+  };
+
+  const clearTag = () => {
+    setActiveTag(null);
+    setLoading(true);
+    loadFeed(selectedIds, null).finally(() => setLoading(false));
   };
 
   // Refresh
@@ -262,6 +281,17 @@ export default function FlashcardFeed({ dispensaId }: { dispensaId?: string }) {
         </div>
       )}
 
+      {/* Active tag filter pill */}
+      {activeTag && (
+        <div className="mb-3 flex items-center gap-2">
+          <span className="flex items-center gap-1.5 rounded-full bg-blue-100 px-3 py-1.5 text-xs font-medium text-blue-700">
+            <span>📌</span>
+            {activeTag}
+            <button onClick={clearTag} className="ml-1 hover:text-blue-900">✕</button>
+          </span>
+        </div>
+      )}
+
       {/* Loading overlay when filtering */}
       {loading && cards.length > 0 && (
         <div className="flex justify-center py-4">
@@ -287,9 +317,11 @@ export default function FlashcardFeed({ dispensaId }: { dispensaId?: string }) {
                 materia={fc.materia}
                 dispensaId={fc.dispensa_id}
                 inizialmenteImportante={fc.importante ?? false}
+                inizialmenteSalvato={fc.salvato ?? false}
                 imageUrl={fc.image_url}
                 colore={fc.colore}
                 onDeleted={handleCardDeleted}
+                onTagClick={handleTagClick}
               />
             </div>
           ))}

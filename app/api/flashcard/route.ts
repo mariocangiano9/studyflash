@@ -5,11 +5,13 @@ import { buildSmartFeed } from "@/lib/feed-algorithm";
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const dispensaIdsParam = searchParams.get("dispensaIds");
+  const tag = searchParams.get("tag") || undefined;
+  const saved = searchParams.get("saved") === "true" || undefined;
   const dispensaIds = dispensaIdsParam
     ? dispensaIdsParam.split(",").filter(Boolean)
     : undefined;
 
-  const allCards = await getAllFlashcardsForFeed(dispensaIds);
+  const allCards = await getAllFlashcardsForFeed({ dispensaIds, tag, saved });
 
   if (allCards.length === 0) {
     return NextResponse.json({ error: "Nessuna flashcard disponibile" }, { status: 404 });

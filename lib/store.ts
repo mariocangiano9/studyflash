@@ -2,7 +2,7 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 
 const db = () => supabaseAdmin();
 
-const FC_COLS = "id, titolo, testo, tag, difficolta, ordine, importante, image_url, image_prompt, last_seen_at, dispensa_id, colore";
+const FC_COLS = "id, titolo, testo, tag, difficolta, ordine, importante, salvato, image_url, image_prompt, last_seen_at, dispensa_id, colore";
 
 export interface StoredFlashcard {
   id: string;
@@ -12,6 +12,7 @@ export interface StoredFlashcard {
   difficolta: "facile" | "media" | "difficile";
   ordine: number;
   importante: boolean;
+  salvato: boolean;
   image_url: string | null;
   image_prompt: string | null;
   last_seen_at: string | null;
@@ -67,19 +68,22 @@ export async function getDispensa(dispensaId: string) {
 export async function getAllDispense(): Promise<StoredDispensa[]> {
   const { data, error } = await db()
     .from("dispense")
-    .select("id, titolo, materia, tags, colore, num_flashcard, created_at")
+    .select("id, titolo, materia, tags, colore, created_at, flashcard(count)")
     .order("created_at", { ascending: false });
 
   if (error || !data) return [];
-  return data.map((d) => ({
-    dispensaId: d.id,
-    titolo: d.titolo,
-    materia: d.materia,
-    tags: d.tags,
-    colore: d.colore,
-    createdAt: d.created_at,
-    numFlashcard: d.num_flashcard,
-  }));
+  return data.map((d) => {
+    const countArr = d.flashcard as unknown as { count: number }[];
+    return {
+      dispensaId: d.id,
+      titolo: d.titolo,
+      materia: d.materia,
+      tags: d.tags,
+      colore: d.colore,
+      createdAt: d.created_at,
+      numFlashcard: countArr?.[0]?.count ?? 0,
+    };
+  });
 }
 
 export async function deleteDispensa(dispensaId: string): Promise<boolean> {
@@ -199,14 +203,20 @@ export async function getFlashcardsByDispensa(dispensaId: string): Promise<Store
   return data as StoredFlashcard[];
 }
 
-export async function getAllFlashcardsForFeed(dispensaIds?: string[]): Promise<(StoredFlashcard & { materia: string })[]> {
+export async function getAllFlashcardsForFeed(opts?: { dispensaIds?: string[]; tag?: string; saved?: boolean }): Promise<(StoredFlashcard & { materia: string })[]> {
   let query = db()
     .from("flashcard")
     .select(`${FC_COLS}, dispense!inner(titolo, materia)`)
     .order("created_at", { ascending: false });
 
-  if (dispensaIds && dispensaIds.length > 0) {
-    query = query.in("dispensa_id", dispensaIds);
+  if (opts?.dispensaIds && opts.dispensaIds.length > 0) {
+    query = query.in("dispensa_id", opts.dispensaIds);
+  }
+  if (opts?.tag) {
+    query = query.contains("tag", [opts.tag]);
+  }
+  if (opts?.saved) {
+    query = query.eq("salvato", true);
   }
 
   const { data, error } = await query;

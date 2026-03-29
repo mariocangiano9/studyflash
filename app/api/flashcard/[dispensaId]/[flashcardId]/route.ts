@@ -15,6 +15,7 @@ export async function PATCH(
     if (body.testo !== undefined) updates.testo = body.testo;
     if (body.difficolta !== undefined) updates.difficolta = body.difficolta;
     if (body.importante !== undefined) updates.importante = body.importante;
+    if (body.salvato !== undefined) updates.salvato = body.salvato;
     if (body.image_url !== undefined) updates.image_url = body.image_url;
 
     await updateFlashcard(flashcardId, updates);

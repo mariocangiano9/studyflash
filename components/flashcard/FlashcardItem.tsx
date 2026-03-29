@@ -13,9 +13,11 @@ interface FlashcardItemProps {
   materia: string;
   dispensaId?: string;
   inizialmenteImportante?: boolean;
+  inizialmenteSalvato?: boolean;
   imageUrl?: string | null;
   colore?: string | null;
   onDeleted?: (id: string) => void;
+  onTagClick?: (tag: string) => void;
 }
 
 const coloriDifficolta = {
@@ -79,12 +81,15 @@ export default function FlashcardItem({
   materia,
   dispensaId,
   inizialmenteImportante = false,
+  inizialmenteSalvato = false,
   imageUrl,
   colore,
   onDeleted,
+  onTagClick,
 }: FlashcardItemProps) {
   const [imgError, setImgError] = useState(false);
   const [importante, setImportante] = useState(inizialmenteImportante);
+  const [salvato, setSalvato] = useState(inizialmenteSalvato);
   const [modalOpen, setModalOpen] = useState(false);
   const [removed, setRemoved] = useState(false);
 
@@ -119,6 +124,18 @@ export default function FlashcardItem({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ importante: next }),
       }).catch(() => setImportante(!next));
+    }
+  };
+
+  const toggleSalvato = () => {
+    const next = !salvato;
+    setSalvato(next);
+    if (apiBase) {
+      fetch(apiBase, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ salvato: next }),
+      }).catch(() => setSalvato(!next));
     }
   };
 
@@ -197,9 +214,13 @@ export default function FlashcardItem({
               {display.difficolta}
             </span>
             {displayTags?.map((t) => (
-              <span key={t} className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-medium text-zinc-600">
+              <button
+                key={t}
+                onClick={() => onTagClick?.(t)}
+                className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-medium text-zinc-600 hover:bg-blue-50 hover:text-blue-700 transition-colors cursor-pointer"
+              >
                 {t}
-              </span>
+              </button>
             ))}
           </div>
         </div>
@@ -208,19 +229,29 @@ export default function FlashcardItem({
         <div className="flex border-t border-zinc-100">
           <button
             onClick={toggleImportante}
-            className={`flex flex-1 items-center justify-center gap-1.5 py-3 text-sm font-medium transition-colors ${
+            className={`flex flex-1 items-center justify-center gap-1.5 py-3 text-xs font-medium transition-colors ${
               importante ? "bg-yellow-50 text-yellow-700" : "text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600"
             }`}
           >
-            <span className="text-base">{importante ? "⭐" : "☆"}</span>
+            <span className="text-sm">{importante ? "⭐" : "☆"}</span>
             Importante
           </button>
           <div className="w-px bg-zinc-100" />
           <button
-            onClick={() => setModalOpen(true)}
-            className="flex flex-1 items-center justify-center gap-1.5 py-3 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-600"
+            onClick={toggleSalvato}
+            className={`flex flex-1 items-center justify-center gap-1.5 py-3 text-xs font-medium transition-colors ${
+              salvato ? "bg-blue-50 text-blue-700" : "text-zinc-400 hover:bg-zinc-50 hover:text-zinc-600"
+            }`}
           >
-            <span className="text-base">✏️</span>
+            <span className="text-sm">{salvato ? "🔖" : "🏷️"}</span>
+            Salva
+          </button>
+          <div className="w-px bg-zinc-100" />
+          <button
+            onClick={() => setModalOpen(true)}
+            className="flex flex-1 items-center justify-center gap-1.5 py-3 text-xs font-medium text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-600"
+          >
+            <span className="text-sm">✏️</span>
             Modifica
           </button>
         </div>

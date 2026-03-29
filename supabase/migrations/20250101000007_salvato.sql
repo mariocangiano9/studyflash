@@ -1,0 +1,1 @@
+ALTER TABLE flashcard ADD COLUMN IF NOT EXISTS salvato boolean NOT NULL DEFAULT false;

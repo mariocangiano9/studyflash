@@ -34,6 +34,7 @@ const COLORI_PALETTE = [
 export default function ArchivioPage() {
   const [dispense, setDispense] = useState<DispensaInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savedCount, setSavedCount] = useState(0);
   const [eliminando, setEliminando] = useState<string | null>(null);
 
   // Accordion state
@@ -63,6 +64,10 @@ export default function ArchivioPage() {
       .then((d) => setDispense(d.dispense || []))
       .catch(() => {})
       .finally(() => setLoading(false));
+    fetch("/api/flashcard?saved=true")
+      .then((r) => r.ok ? r.json() : { feed: [] })
+      .then((d) => setSavedCount(d.feed?.length ?? 0))
+      .catch(() => {});
   }, []);
 
   const toggleExpand = useCallback(async (dispensaId: string) => {
@@ -257,6 +262,25 @@ export default function ArchivioPage() {
     <div className="mx-auto max-w-[600px] px-4 pt-6 pb-8">
       <h1 className="text-xl font-bold text-zinc-900">Archivio</h1>
       <p className="mt-1 text-sm text-zinc-500">{dispense.length} dispense caricate</p>
+
+      {/* Salvati section */}
+      {savedCount > 0 && (
+        <Link
+          href="/feed?saved=true"
+          className="mt-4 flex items-center justify-between rounded-2xl bg-blue-50 p-4 transition-colors hover:bg-blue-100"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🔖</span>
+            <div>
+              <p className="text-sm font-semibold text-blue-900">Post salvati</p>
+              <p className="text-xs text-blue-600">{savedCount} flashcard salvate</p>
+            </div>
+          </div>
+          <svg className="h-5 w-5 text-blue-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+        </Link>
+      )}
 
       <div className="mt-5 flex flex-col gap-3">
         {dispense.map((d) => {
