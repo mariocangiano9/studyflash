@@ -13,7 +13,9 @@ export async function GET(request: NextRequest) {
     ? dispensaIdsParam.split(",").filter(Boolean)
     : undefined;
 
-  const allCards = await getAllFlashcardsForFeed({ dispensaIds, tag, saved });
+  const search = searchParams.get("search") || undefined;
+
+  const allCards = await getAllFlashcardsForFeed({ dispensaIds, tag, saved, search });
 
   if (allCards.length === 0) {
     return NextResponse.json({ error: "Nessuna flashcard disponibile" }, { status: 404 });

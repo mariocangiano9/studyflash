@@ -39,6 +39,9 @@ export default function FlashcardFeed({ dispensaId, savedMode }: { dispensaId?: 
   const [dispense, setDispense] = useState<DispensaFilter[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchActive, setSearchActive] = useState("");
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Scroll-to-top
   const [showScrollTop, setShowScrollTop] = useState(false);
@@ -69,15 +72,17 @@ export default function FlashcardFeed({ dispensaId, savedMode }: { dispensaId?: 
     return () => window.removeEventListener("scroll", handler);
   }, []);
 
-  const buildParams = useCallback((filterIds?: Set<string>, tagFilter?: string | null) => {
+  const buildParams = useCallback((filterIds?: Set<string>, tagFilter?: string | null, searchOverride?: string) => {
     const ids = filterIds ?? selectedIds;
     const tag = tagFilter !== undefined ? tagFilter : activeTag;
+    const search = searchOverride !== undefined ? searchOverride : searchActive;
     const params = new URLSearchParams();
     if (ids.size > 0) params.set("dispensaIds", Array.from(ids).join(","));
     if (tag) params.set("tag", tag);
     if (savedMode) params.set("saved", "true");
+    if (search) params.set("search", search);
     return params;
-  }, [selectedIds, activeTag, savedMode]);
+  }, [selectedIds, activeTag, savedMode, searchActive]);
 
   const loadFeed = useCallback(async (filterIds?: Set<string>, tagFilter?: string | null) => {
     try {
@@ -171,6 +176,37 @@ export default function FlashcardFeed({ dispensaId, savedMode }: { dispensaId?: 
     setActiveTag(null);
     setLoading(true);
     loadFeed(selectedIds, null).finally(() => setLoading(false));
+  };
+
+  const handleSearchInput = (value: string) => {
+    setSearchQuery(value);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      setSearchActive(value);
+      setLoading(true);
+      // Reset cards and load with new search
+      setCards([]);
+      const params = buildParams(selectedIds, activeTag, value);
+      params.set("offset", "0");
+      params.set("limit", String(PAGE_SIZE));
+      fetch(`/api/flashcard?${params}`)
+        .then((r) => r.ok ? r.json() : { feed: [], total: 0, hasMore: false })
+        .then((data) => {
+          setCards(data.feed || []);
+          setHasMore(data.hasMore ?? false);
+          setTotal(data.total ?? 0);
+          setErrore("");
+        })
+        .catch(() => setErrore("Errore ricerca"))
+        .finally(() => setLoading(false));
+    }, 400);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    setSearchActive("");
+    setLoading(true);
+    loadFeed().finally(() => setLoading(false));
   };
 
   // Refresh
@@ -313,6 +349,29 @@ export default function FlashcardFeed({ dispensaId, savedMode }: { dispensaId?: 
                 d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
             </svg>
           </button>
+        </div>
+      )}
+
+      {/* Search bar */}
+      {!dispensaId && (
+        <div className="mb-3 relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => handleSearchInput(e.target.value)}
+            placeholder="Cerca tra le flashcard..."
+            className="w-full rounded-xl bg-white py-2.5 pl-9 pr-9 text-sm ring-1 ring-zinc-200 outline-none focus:ring-blue-400 placeholder:text-zinc-400"
+          />
+          {searchQuery && (
+            <button onClick={clearSearch} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
       )}
 

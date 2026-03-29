@@ -203,7 +203,7 @@ export async function getFlashcardsByDispensa(dispensaId: string): Promise<Store
   return data as StoredFlashcard[];
 }
 
-export async function getAllFlashcardsForFeed(opts?: { dispensaIds?: string[]; tag?: string; saved?: boolean }): Promise<(StoredFlashcard & { materia: string })[]> {
+export async function getAllFlashcardsForFeed(opts?: { dispensaIds?: string[]; tag?: string; saved?: boolean; search?: string }): Promise<(StoredFlashcard & { materia: string })[]> {
   const PAGE_SIZE = 1000;
   const allData: Record<string, unknown>[] = [];
   let from = 0;
@@ -224,6 +224,9 @@ export async function getAllFlashcardsForFeed(opts?: { dispensaIds?: string[]; t
     }
     if (opts?.saved) {
       query = query.eq("salvato", true);
+    }
+    if (opts?.search) {
+      query = query.or(`titolo.ilike.%${opts.search}%,testo.ilike.%${opts.search}%`);
     }
 
     const { data, error } = await query;

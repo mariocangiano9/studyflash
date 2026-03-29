@@ -462,8 +462,14 @@ export default function ArchivioPage() {
                     Feed
                   </Link>
                   <Link
+                    href={`/studio/${d.dispensaId}`}
+                    className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-2.5 text-sm font-medium text-white hover:bg-emerald-600"
+                  >
+                    Studia
+                  </Link>
+                  <Link
                     href={`/quiz?dispensaId=${d.dispensaId}`}
-                    className="flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-amber-600"
+                    className="flex items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-3 py-2.5 text-sm font-medium text-white hover:bg-amber-600"
                   >
                     Quiz
                   </Link>
