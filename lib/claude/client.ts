@@ -139,7 +139,7 @@ LINGUA: italiano.
 
 STRUTTURA flashcard:
 - titolo: concetto (max 8 parole, NO domande)
-- testo: 1-2 frasi spiegazione + se enumerabile "\\n• " punti + "\\nAd esempio, " esempio + "\\nNel contesto " solo se essenziale
+- testo: AUTOSUFFICIENTE (chi legge deve capire senza il libro). 3-4 frasi di spiegazione con dettagli specifici, non solo la definizione base. Se enumerabile: "\\n• " punti. Poi "\\nAd esempio, " esempio pratico concreto. Max 8-10 righe totali
 - tag: 2-4 keyword
 - ordine: da ${startOrdine}
 - difficolta: "facile" | "media" | "difficile"
