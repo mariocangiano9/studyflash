@@ -4,8 +4,19 @@ import { generateImage } from "@/lib/dalle";
 
 export const maxDuration = 300;
 
+function checkAdminToken(request: NextRequest): NextResponse | null {
+  const token = request.headers.get("x-admin-token");
+  if (token !== process.env.ADMIN_TOKEN) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return null;
+}
+
 /** GET → status: quante flashcard mancano di immagine */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const denied = checkAdminToken(request);
+  if (denied) return denied;
+
   try {
     const db = supabaseAdmin();
 
@@ -37,6 +48,9 @@ export async function GET() {
 
 /** POST?batch=50 → processa N immagini e restituisce progresso */
 export async function POST(req: NextRequest) {
+  const denied = checkAdminToken(req);
+  if (denied) return denied;
+
   try {
     const batchSize = Math.min(
       Number(req.nextUrl.searchParams.get("batch") || 50),
