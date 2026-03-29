@@ -4,7 +4,7 @@ import { saveDispensa } from "@/lib/store";
 export const maxDuration = 15;
 
 // Duplicated from lib/claude/client.ts to avoid importing the whole module
-const MAX_CHARS = 4000;
+const MAX_CHARS = 2000;
 
 function splitTesto(testo: string): string[] {
   if (testo.length <= MAX_CHARS) return [testo];

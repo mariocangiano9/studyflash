@@ -19,9 +19,9 @@ const MOCK_QUIZ: Omit<QuizGenerato, "flashcard_id">[] = [
   { domanda: "Chi ha teorizzato la separazione dei poteri?", opzioni: ["Rousseau", "Montesquieu", "Locke", "Hobbes"], risposta_corretta: 1, spiegazione: "Montesquieu teorizzò la separazione dei poteri nel XVIII secolo." },
 ];
 
-const SYSTEM_PROMPT = `Sei un professore universitario esperto di didattica. Crei post informativi da dispense universitarie italiane, come post di Instagram dedicati allo studio.`;
+const SYSTEM_PROMPT = `Sei un estrattore di concetti da dispense universitarie italiane. Il tuo UNICO compito è trovare OGNI concetto presente nel testo e creare UNA flashcard per ognuno. Non fai riassunti. Non salti nulla. Generi MINIMO 1 flashcard ogni 3-4 righe di testo.`;
 
-const MAX_CHARS_PER_CHUNK = 4000;
+const MAX_CHARS_PER_CHUNK = 2000;
 
 // ── Chunking ──
 
@@ -120,38 +120,32 @@ async function generaFlashcardChunk(
     messages: [
       {
         role: "user",
-        content: `Segmento ${chunkIndex + 1}/${totalChunks} del documento "${titolo}".
+        content: `Segmento ${chunkIndex + 1}/${totalChunks} — "${titolo}"
 
-ISTRUZIONI FONDAMENTALI:
-Analizza OGNI FRASE di questo testo. Per ogni definizione, articolo, principio, istituto, procedura, concetto, evento storico, o nozione genera UNA flashcard separata. Non raggruppare mai più concetti in una flashcard. Non saltare nulla. Se hai dubbi se un concetto merita una flashcard, generala comunque.
+REGOLE ASSOLUTE:
+- Ogni sostantivo importante = 1 flashcard
+- Ogni definizione = 1 flashcard
+- Ogni articolo di legge citato = 1 flashcard
+- Ogni procedura = 1 flashcard
+- Ogni eccezione a una regola = 1 flashcard
+- Ogni evento storico nominato = 1 flashcard
+- NON raggruppare mai due concetti in una flashcard
+- NON fare riassunti
+- NON saltare nulla
+- Se hai dubbi, genera la flashcard
+- MINIMO 1 flashcard ogni 3-4 righe di testo
 
-LINGUA: sempre italiano.
+LINGUA: italiano.
 
-STRUTTURA:
-- titolo: concetto chiaro e diretto (max 8 parole, NO domande)
-- testo: COMPATTO, max 8-10 righe. Struttura:
-    1-2 frasi di spiegazione.
-    Se enumerabile: "\\n• " (max 4-5 punti, 1 riga ciascuno).
-    "\\nAd esempio, " 1 frase esempio pratico.
-    "\\nNel contesto " 1 frase contesto solo se essenziale.
+STRUTTURA flashcard:
+- titolo: concetto (max 8 parole, NO domande)
+- testo: 1-2 frasi spiegazione + se enumerabile "\\n• " punti + "\\nAd esempio, " esempio + "\\nNel contesto " solo se essenziale
 - tag: 2-4 keyword
-- ordine: intero progressivo da ${startOrdine}
+- ordine: da ${startOrdine}
 - difficolta: "facile" | "media" | "difficile"
-- image_prompt: inglese, DALL-E, "editorial photography, clean background", max 20 parole
+- image_prompt: inglese, DALL-E, max 20 parole
 
-OUTPUT: solo array JSON puro, nessun testo prima o dopo, nessun markdown.
-[
-  {
-    "titolo": "concetto chiave",
-    "testo": "Spiegazione principale.\\n• Punto 1\\n• Punto 2\\nAd esempio, ...",
-    "tag": ["keyword1", "keyword2"],
-    "ordine": ${startOrdine},
-    "difficolta": "media",
-    "image_prompt": "descriptive english prompt for editorial image"
-  }
-]
-
-TESTO DEL SEGMENTO:
+Solo array JSON:
 ${testo}`,
       },
     ],
