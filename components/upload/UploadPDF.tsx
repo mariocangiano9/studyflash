@@ -518,7 +518,7 @@ export default function UploadPDF() {
                   <input
                     ref={importInputRef}
                     type="file"
-                    accept=".docx"
+                    accept=".docx,.doc"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) handleImportFile(file);
@@ -529,10 +529,10 @@ export default function UploadPDF() {
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-100 text-2xl">📋</div>
                   <div>
                     <p className="text-sm font-medium text-zinc-700">
-                      {importDragging ? "Rilascia qui" : "Carica un file .docx strutturato"}
+                      {importDragging ? "Rilascia qui" : "Trascina il file Word (.docx) qui o clicca per selezionare"}
                     </p>
                     <p className="mt-0.5 text-xs text-zinc-500">
-                      Ogni heading (H1/H2/H3) diventa il titolo, il testo sotto diventa il contenuto
+                      Ogni paragrafo numerato in grassetto diventa una flashcard
                     </p>
                   </div>
                 </div>
