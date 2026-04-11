@@ -46,10 +46,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// Regex: a numbered title starts with one or more digits followed by a dot and space
+const NUMBERED_TITLE_RE = /^\d+\.\s+/;
+
 function parseHtmlToFlashcards(html: string): ExtractedCard[] {
   const cards: ExtractedCard[] = [];
 
-  // Split HTML into blocks: each tag with its content
+  // Extract blocks: headings, paragraphs, list items
   const blocks: { type: string; html: string }[] = [];
   const blockPattern = /<(h[1-3]|p|li)[^>]*>([\s\S]*?)<\/\1>/gi;
   let m;
@@ -80,26 +83,23 @@ function parseHtmlToFlashcards(html: string): ExtractedCard[] {
     // H1/H2/H3 = chapter heading → flush current card, update chapter
     if (block.type === "h1" || block.type === "h2" || block.type === "h3") {
       flush();
-      // Clean chapter name: strip numbering like "1. " or "1) "
       const raw = stripHtml(block.html).trim();
       currentCapitolo = raw.replace(/^\d+[\.\)]\s*/, "");
       continue;
     }
 
-    // Paragraph: check if it starts with <strong> = new flashcard title
     if (block.type === "p") {
+      // Check if this paragraph starts with <strong> containing a numbered title
       const strongMatch = block.html.match(/^<strong>([\s\S]*?)<\/strong>([\s\S]*)$/i);
 
       if (strongMatch) {
         const boldText = stripHtml(strongMatch[1]).trim();
-        const rest = stripHtml(strongMatch[2]).trim();
 
-        if (boldText) {
-          // New flashcard: flush previous one
+        // ONLY create a new flashcard if the bold text starts with "N. "
+        if (boldText && NUMBERED_TITLE_RE.test(boldText)) {
           flush();
-          // Clean title: strip numbering
-          currentTitolo = boldText.replace(/^\d+[\.\)]\s*/, "");
-          // If there's text after the bold on the same line, add it to testo
+          currentTitolo = boldText;
+          const rest = stripHtml(strongMatch[2]).trim();
           if (rest) {
             currentTesto.push(rest);
           }
@@ -107,7 +107,7 @@ function parseHtmlToFlashcards(html: string): ExtractedCard[] {
         }
       }
 
-      // Normal paragraph — append to current flashcard body
+      // Everything else: accumulate as body text of the current flashcard
       const text = stripHtml(block.html).trim();
       if (text && currentTitolo) {
         currentTesto.push(text);
@@ -115,7 +115,7 @@ function parseHtmlToFlashcards(html: string): ExtractedCard[] {
       continue;
     }
 
-    // List item — append as bullet to current flashcard body
+    // List items — accumulate as bullet points in current flashcard body
     if (block.type === "li") {
       const text = stripHtml(block.html).trim();
       if (text && currentTitolo) {
