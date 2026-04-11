@@ -18,10 +18,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "File .docx richiesto" }, { status: 400 });
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    console.log(`[import] File: ${file.name}, size: ${buffer.length} bytes`);
 
     // Convert to HTML to detect headings
     const { value: html } = await mammoth.convertToHtml({ buffer });
+
+    console.log(`[import] HTML generato: ${html.length} chars`);
 
     // Parse HTML to extract heading → text structure
     const flashcards = parseHtmlToFlashcards(html);

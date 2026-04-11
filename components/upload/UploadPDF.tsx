@@ -97,6 +97,14 @@ export default function UploadPDF() {
 
     try {
       const res = await fetch("/api/import", { method: "POST", body: formData });
+
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        setImportError(`Errore server (${res.status}): risposta non JSON`);
+        setImportStep("error");
+        return;
+      }
+
       const data = await res.json();
 
       if (!res.ok) {
@@ -108,8 +116,9 @@ export default function UploadPDF() {
       setImportCards(data.flashcards);
       setImportTitolo(data.titolo);
       setImportStep("preview");
-    } catch {
-      setImportError("Errore di rete");
+    } catch (err) {
+      console.error("[import] Errore:", err);
+      setImportError(err instanceof Error ? `Errore di rete: ${err.message}` : "Errore di rete");
       setImportStep("error");
     }
   }
@@ -128,6 +137,13 @@ export default function UploadPDF() {
           tags: parseTags(),
         }),
       });
+
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        setImportError(`Errore server (${res.status}): risposta non JSON`);
+        setImportStep("error");
+        return;
+      }
 
       const data = await res.json();
 
@@ -148,8 +164,9 @@ export default function UploadPDF() {
           body: JSON.stringify({ dispensaId: data.dispensaId }),
         }).catch(() => {});
       }
-    } catch {
-      setImportError("Errore di rete");
+    } catch (err) {
+      console.error("[import/save] Errore:", err);
+      setImportError(err instanceof Error ? `Errore di rete: ${err.message}` : "Errore di rete");
       setImportStep("error");
     }
   }
