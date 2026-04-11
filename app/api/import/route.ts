@@ -6,6 +6,7 @@ export const maxDuration = 30;
 interface ExtractedCard {
   titolo: string;
   testo: string;
+  capitolo: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     if (flashcards.length === 0) {
       return NextResponse.json(
-        { error: "Nessun heading (H1/H2/H3) trovato nel documento. Il file deve avere titoli strutturati." },
+        { error: "Nessuna flashcard trovata. Il documento deve avere capitoli (H1) e paragrafi con titoli in grassetto." },
         { status: 422 }
       );
     }
@@ -48,30 +49,83 @@ export async function POST(req: NextRequest) {
 function parseHtmlToFlashcards(html: string): ExtractedCard[] {
   const cards: ExtractedCard[] = [];
 
-  // Split by heading tags
-  // Match: <h1>...</h1>, <h2>...</h2>, <h3>...</h3>
-  const headingPattern = /<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi;
-  const headings: { title: string; index: number; endIndex: number }[] = [];
-
-  let match;
-  while ((match = headingPattern.exec(html)) !== null) {
-    headings.push({
-      title: stripHtml(match[1]).trim(),
-      index: match.index,
-      endIndex: match.index + match[0].length,
-    });
+  // Split HTML into blocks: each tag with its content
+  const blocks: { type: string; html: string }[] = [];
+  const blockPattern = /<(h[1-3]|p|li)[^>]*>([\s\S]*?)<\/\1>/gi;
+  let m;
+  while ((m = blockPattern.exec(html)) !== null) {
+    blocks.push({ type: m[1].toLowerCase(), html: m[2] });
   }
 
-  for (let i = 0; i < headings.length; i++) {
-    const heading = headings[i];
-    const nextStart = i + 1 < headings.length ? headings[i + 1].index : html.length;
-    const bodyHtml = html.slice(heading.endIndex, nextStart).trim();
-    const bodyText = stripHtml(bodyHtml).trim();
+  let currentCapitolo = "";
+  let currentTitolo = "";
+  let currentTesto: string[] = [];
 
-    if (heading.title && bodyText) {
-      cards.push({ titolo: heading.title, testo: bodyText });
+  function flush() {
+    if (currentTitolo && currentTesto.length > 0) {
+      const testo = currentTesto.join("\n").trim();
+      if (testo) {
+        cards.push({
+          titolo: currentTitolo,
+          testo,
+          capitolo: currentCapitolo,
+        });
+      }
+    }
+    currentTitolo = "";
+    currentTesto = [];
+  }
+
+  for (const block of blocks) {
+    // H1/H2/H3 = chapter heading → flush current card, update chapter
+    if (block.type === "h1" || block.type === "h2" || block.type === "h3") {
+      flush();
+      // Clean chapter name: strip numbering like "1. " or "1) "
+      const raw = stripHtml(block.html).trim();
+      currentCapitolo = raw.replace(/^\d+[\.\)]\s*/, "");
+      continue;
+    }
+
+    // Paragraph: check if it starts with <strong> = new flashcard title
+    if (block.type === "p") {
+      const strongMatch = block.html.match(/^<strong>([\s\S]*?)<\/strong>([\s\S]*)$/i);
+
+      if (strongMatch) {
+        const boldText = stripHtml(strongMatch[1]).trim();
+        const rest = stripHtml(strongMatch[2]).trim();
+
+        if (boldText) {
+          // New flashcard: flush previous one
+          flush();
+          // Clean title: strip numbering
+          currentTitolo = boldText.replace(/^\d+[\.\)]\s*/, "");
+          // If there's text after the bold on the same line, add it to testo
+          if (rest) {
+            currentTesto.push(rest);
+          }
+          continue;
+        }
+      }
+
+      // Normal paragraph — append to current flashcard body
+      const text = stripHtml(block.html).trim();
+      if (text && currentTitolo) {
+        currentTesto.push(text);
+      }
+      continue;
+    }
+
+    // List item — append as bullet to current flashcard body
+    if (block.type === "li") {
+      const text = stripHtml(block.html).trim();
+      if (text && currentTitolo) {
+        currentTesto.push("• " + text);
+      }
     }
   }
+
+  // Flush last card
+  flush();
 
   return cards;
 }

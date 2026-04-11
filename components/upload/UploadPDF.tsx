@@ -27,6 +27,7 @@ type UploadMode = "ai" | "structured";
 interface ImportedCard {
   titolo: string;
   testo: string;
+  capitolo?: string;
 }
 
 type ImportStep = "upload" | "preview" | "saving" | "done" | "error";
@@ -571,6 +572,9 @@ export default function UploadPDF() {
                 <div className="mt-4 flex flex-col gap-2 max-h-[400px] overflow-y-auto">
                   {importCards.map((card, i) => (
                     <div key={i} className="rounded-xl border border-zinc-100 bg-zinc-50 p-3">
+                      {card.capitolo && (
+                        <p className="text-[10px] font-medium text-purple-600 uppercase tracking-wide mb-0.5">{card.capitolo}</p>
+                      )}
                       <p className="text-sm font-semibold text-zinc-900">{card.titolo}</p>
                       <p className="mt-1 text-xs text-zinc-600 line-clamp-3">{card.testo}</p>
                     </div>

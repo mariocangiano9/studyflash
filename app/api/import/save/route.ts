@@ -6,6 +6,7 @@ export const maxDuration = 120;
 interface ImportedCard {
   titolo: string;
   testo: string;
+  capitolo?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -42,15 +43,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Save flashcards
-    const fcRows = flashcards.map((fc, i) => ({
-      titolo: fc.titolo,
-      testo: fc.testo,
-      tag: allMeta[i]?.tag || [],
-      difficolta: "media" as const,
-      ordine: i + 1,
-      image_prompt: allMeta[i]?.image_prompt || "",
-    }));
+    // 3. Save flashcards (include capitolo in tags if present)
+    const fcRows = flashcards.map((fc, i) => {
+      const baseTags = allMeta[i]?.tag || [];
+      const capitoloTag = fc.capitolo?.trim();
+      const tag = capitoloTag && !baseTags.some((t) => t.toLowerCase() === capitoloTag.toLowerCase())
+        ? [capitoloTag, ...baseTags]
+        : baseTags;
+      return {
+        titolo: fc.titolo,
+        testo: fc.testo,
+        tag,
+        difficolta: "media" as const,
+        ordine: i + 1,
+        image_prompt: allMeta[i]?.image_prompt || "",
+      };
+    });
 
     const saved = await saveFlashcards(dispensaId, fcRows);
 
