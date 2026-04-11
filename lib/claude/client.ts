@@ -305,6 +305,47 @@ async function generaQuizConRetry(
   return null;
 }
 
+// ── Tag + image_prompt generation (for structured import) ──
+
+export async function generaTagSolo(
+  flashcards: { titolo: string; testo: string }[]
+): Promise<{ tag: string[]; image_prompt: string }[]> {
+  if (isMockAI) {
+    return flashcards.map(() => ({
+      tag: ["mock", "test"],
+      image_prompt: "A clean editorial illustration of a concept, professional style",
+    }));
+  }
+
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 8192,
+    system: "Sei un assistente che genera tag e prompt per immagini a partire da flashcard universitarie italiane.",
+    messages: [
+      {
+        role: "user",
+        content: `Per ognuna delle seguenti ${flashcards.length} flashcard genera:
+- tag: 2-4 keyword in italiano
+- image_prompt: prompt DALL-E in inglese, max 20 parole, stile editoriale
+
+Rispondi SOLO con un array JSON, un oggetto per flashcard nello stesso ordine:
+[{"tag":["..."],"image_prompt":"..."},...]
+
+FLASHCARD:
+${flashcards.map((fc, i) => `${i + 1}. TITOLO: ${fc.titolo}\nTESTO: ${fc.testo}`).join("\n\n")}`,
+      },
+    ],
+  });
+
+  const content = response.content[0];
+  if (content.type !== "text") throw new Error("Risposta inattesa da Claude");
+
+  const parsed = parseJsonArray<{ tag: string[]; image_prompt: string }>(content.text);
+
+  // Ensure we have a result for each flashcard
+  return flashcards.map((_, i) => parsed[i] || { tag: [], image_prompt: "" });
+}
+
 export async function generaQuizBatch(
   flashcards: { id: string; titolo: string; testo: string }[],
   allFlashcards?: { id: string; titolo: string; testo: string }[]
