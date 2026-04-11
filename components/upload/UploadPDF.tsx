@@ -96,7 +96,7 @@ export default function UploadPDF() {
     formData.append("file", file);
 
     try {
-      const res = await fetch("/api/import", { method: "POST", body: formData });
+      const res = await fetch("/api/import/parse", { method: "POST", body: formData });
 
       const contentType = res.headers.get("content-type") || "";
       if (!contentType.includes("application/json")) {

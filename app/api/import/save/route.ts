@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveDispensa, saveFlashcards } from "@/lib/store";
 import { generaTagSolo } from "@/lib/claude/client";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 interface ImportedCard {
   titolo: string;
