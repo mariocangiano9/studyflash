@@ -2,6 +2,9 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import FlashcardItem from "./FlashcardItem";
+import DeckView from "./DeckView";
+
+type ViewMode = "deck" | "scroll";
 
 interface FeedCard {
   id: string;
@@ -26,6 +29,17 @@ interface DispensaFilter {
 const PAGE_SIZE = 50;
 
 export default function FlashcardFeed({ dispensaId, savedMode }: { dispensaId?: string; savedMode?: boolean }) {
+  // View mode with localStorage persistence
+  const [viewMode, setViewMode] = useState<ViewMode>("deck");
+  useEffect(() => {
+    const saved = localStorage.getItem("studyflash-feed-view");
+    if (saved === "scroll" || saved === "deck") setViewMode(saved);
+  }, []);
+  const switchView = (mode: ViewMode) => {
+    setViewMode(mode);
+    localStorage.setItem("studyflash-feed-view", mode);
+  };
+
   const [cards, setCards] = useState<FeedCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -386,6 +400,32 @@ export default function FlashcardFeed({ dispensaId, savedMode }: { dispensaId?: 
         </div>
       )}
 
+      {/* View mode toggle */}
+      <div className="mb-3 flex items-center justify-center gap-1 rounded-full bg-zinc-100 p-1 mx-auto w-fit">
+        <button
+          onClick={() => switchView("deck")}
+          className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+            viewMode === "deck"
+              ? "bg-white text-zinc-800 shadow-sm"
+              : "text-zinc-500 hover:text-zinc-700"
+          }`}
+        >
+          <span className="text-sm">🃏</span>
+          Mazzo
+        </button>
+        <button
+          onClick={() => switchView("scroll")}
+          className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${
+            viewMode === "scroll"
+              ? "bg-white text-zinc-800 shadow-sm"
+              : "text-zinc-500 hover:text-zinc-700"
+          }`}
+        >
+          <span className="text-sm">📜</span>
+          Scroll
+        </button>
+      </div>
+
       {/* Loading overlay when filtering */}
       {loading && cards.length > 0 && (
         <div className="flex justify-center py-4">
@@ -398,6 +438,12 @@ export default function FlashcardFeed({ dispensaId, savedMode }: { dispensaId?: 
         <div className="flex flex-col items-center justify-center gap-3 py-16">
           <p className="text-sm text-zinc-500">Nessuna flashcard per questa selezione</p>
         </div>
+      ) : viewMode === "deck" ? (
+        <DeckView
+          cards={cards}
+          onCardDeleted={handleCardDeleted}
+          onTagClick={handleTagClick}
+        />
       ) : (
         <>
           <div className="flex flex-col gap-5">
@@ -437,18 +483,20 @@ export default function FlashcardFeed({ dispensaId, savedMode }: { dispensaId?: 
         </>
       )}
 
-      {/* Scroll to top button */}
-      <button
-        onClick={scrollToTop}
-        className={`fixed right-4 bottom-20 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-all duration-300 ${
-          showScrollTop ? "opacity-100 scale-100" : "opacity-0 scale-75 pointer-events-none"
-        }`}
-        aria-label="Torna su"
-      >
-        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
-        </svg>
-      </button>
+      {/* Scroll to top button (only in scroll mode) */}
+      {viewMode === "scroll" && (
+        <button
+          onClick={scrollToTop}
+          className={`fixed right-4 bottom-20 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition-all duration-300 ${
+            showScrollTop ? "opacity-100 scale-100" : "opacity-0 scale-75 pointer-events-none"
+          }`}
+          aria-label="Torna su"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
