@@ -28,6 +28,43 @@ interface DeckViewProps {
   onTagClick: (tag: string) => void;
 }
 
+/* Skeleton placeholder shown when a card slot has no data yet */
+function CardSkeleton({ bgColor }: { bgColor?: string }) {
+  return (
+    <div
+      className="overflow-hidden rounded-2xl shadow-md shadow-zinc-200/60"
+      style={{ backgroundColor: bgColor || "#f4f4f5" }}
+    >
+      <div className="w-full animate-pulse bg-zinc-200" style={{ aspectRatio: "16 / 5" }} />
+      <div className="px-5 pt-4 pb-5 space-y-3">
+        <div className="h-4 w-20 rounded-full bg-zinc-200 animate-pulse" />
+        <div className="h-5 w-3/4 rounded bg-zinc-200 animate-pulse" />
+        <div className="space-y-2">
+          <div className="h-3.5 w-full rounded bg-zinc-200 animate-pulse" />
+          <div className="h-3.5 w-5/6 rounded bg-zinc-200 animate-pulse" />
+          <div className="h-3.5 w-2/3 rounded bg-zinc-200 animate-pulse" />
+        </div>
+        <div className="flex gap-2">
+          <div className="h-6 w-14 rounded-full bg-zinc-200 animate-pulse" />
+          <div className="h-6 w-16 rounded-full bg-zinc-200 animate-pulse" />
+        </div>
+      </div>
+      <div className="flex border-t border-zinc-100">
+        <div className="flex-1 py-3" />
+        <div className="flex-1 py-3" />
+        <div className="flex-1 py-3" />
+      </div>
+    </div>
+  );
+}
+
+// Layers config for the 3-card stack: [offset index, scale, translateY, opacity]
+const STACK_LAYERS = [
+  { scale: 1, y: 0, opacity: 1 },       // top (current)
+  { scale: 0.96, y: 8, opacity: 0.7 },   // middle (next)
+  { scale: 0.92, y: 16, opacity: 0.4 },  // bottom (next+1)
+] as const;
+
 export default function DeckView({
   cards,
   total,
@@ -38,28 +75,26 @@ export default function DeckView({
   onTagClick,
 }: DeckViewProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [direction, setDirection] = useState<"left" | "right" | null>(null);
-  const [animating, setAnimating] = useState(false);
+  const [swiping, setSwiping] = useState(false);
+  const [swipeDir, setSwipeDir] = useState<"left" | "right" | null>(null);
 
-  // Swipe state
+  // Swipe/drag state
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const startX = useRef(0);
-  const containerRef = useRef<HTMLDivElement>(null);
   const prevCardsLen = useRef(cards.length);
 
-  // Reset index only when cards are fully replaced (filter change), not when appended
+  // Reset only on filter/search (cards replaced, not appended)
   useEffect(() => {
     if (cards.length < prevCardsLen.current) {
-      // Cards were replaced (filter/search changed) — reset
       setCurrentIndex(0);
-      setDirection(null);
-      setAnimating(false);
+      setSwiping(false);
+      setSwipeDir(null);
     }
     prevCardsLen.current = cards.length;
   }, [cards.length]);
 
-  // Prefetch more cards when approaching the end of loaded batch
+  // Prefetch more cards when approaching the end
   useEffect(() => {
     if (hasMore && currentIndex >= cards.length - 5) {
       onLoadMore();
@@ -67,61 +102,53 @@ export default function DeckView({
   }, [currentIndex, cards.length, hasMore, onLoadMore]);
 
   const goNext = useCallback(() => {
-    if (animating) return;
-    // If at the end of all cards (nothing more to load), restart
+    if (swiping) return;
     if (currentIndex >= cards.length - 1 && !hasMore) {
       onRestart();
       setCurrentIndex(0);
       return;
     }
-    if (currentIndex >= cards.length - 1) return; // still loading
-    setDirection("left");
-    setAnimating(true);
+    if (currentIndex >= cards.length - 1) return;
+    setSwipeDir("left");
+    setSwiping(true);
     setTimeout(() => {
       setCurrentIndex((i) => i + 1);
-      setDirection(null);
-      setAnimating(false);
+      setSwipeDir(null);
+      setSwiping(false);
     }, 250);
-  }, [animating, currentIndex, cards.length, hasMore, onRestart]);
+  }, [swiping, currentIndex, cards.length, hasMore, onRestart]);
 
   const goPrev = useCallback(() => {
-    if (animating || currentIndex <= 0) return;
-    setDirection("right");
-    setAnimating(true);
+    if (swiping || currentIndex <= 0) return;
+    setSwipeDir("right");
+    setSwiping(true);
     setTimeout(() => {
       setCurrentIndex((i) => i - 1);
-      setDirection(null);
-      setAnimating(false);
+      setSwipeDir(null);
+      setSwiping(false);
     }, 250);
-  }, [animating, currentIndex]);
+  }, [swiping, currentIndex]);
 
-  // Keyboard navigation
+  // Keyboard
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-        e.preventDefault();
-        goNext();
-      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-        e.preventDefault();
-        goPrev();
-      }
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); goNext(); }
+      else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); goPrev(); }
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [goNext, goPrev]);
 
-  // Touch handlers
+  // Touch
   const onTouchStart = (e: React.TouchEvent) => {
-    if (animating) return;
+    if (swiping) return;
     startX.current = e.touches[0].clientX;
     setDragging(true);
   };
-
   const onTouchMove = (e: React.TouchEvent) => {
     if (!dragging) return;
     setDragX(e.touches[0].clientX - startX.current);
   };
-
   const onTouchEnd = () => {
     if (!dragging) return;
     setDragging(false);
@@ -130,18 +157,16 @@ export default function DeckView({
     setDragX(0);
   };
 
-  // Mouse drag handlers
+  // Mouse
   const onMouseDown = (e: React.MouseEvent) => {
-    if (animating) return;
+    if (swiping) return;
     startX.current = e.clientX;
     setDragging(true);
   };
-
   const onMouseMove = (e: React.MouseEvent) => {
     if (!dragging) return;
     setDragX(e.clientX - startX.current);
   };
-
   const onMouseUp = () => {
     if (!dragging) return;
     setDragging(false);
@@ -152,22 +177,9 @@ export default function DeckView({
 
   if (cards.length === 0) return null;
 
-  const card = cards[currentIndex];
-  if (!card) return null;
-
-  // Smooth horizontal slide, no rotation
-  let cardTransform = "translateX(0)";
-  let cardOpacity = 1;
-  if (direction === "left") {
-    cardTransform = "translateX(-110%)";
-    cardOpacity = 0;
-  } else if (direction === "right") {
-    cardTransform = "translateX(110%)";
-    cardOpacity = 0;
-  } else if (dragging && dragX !== 0) {
-    cardTransform = `translateX(${dragX}px)`;
-    cardOpacity = Math.max(0.3, 1 - Math.abs(dragX) / 500);
-  }
+  // Build the visible stack: up to 3 cards (current, next, next+1)
+  const stackIndices = [currentIndex, currentIndex + 1, currentIndex + 2];
+  const lastColor = cards[currentIndex]?.colore || undefined;
 
   return (
     <div className="relative">
@@ -178,9 +190,8 @@ export default function DeckView({
         </span>
       </div>
 
-      {/* Card stack area */}
+      {/* Card stack */}
       <div
-        ref={containerRef}
         className="relative mx-auto"
         style={{ minHeight: 400 }}
         onTouchStart={onTouchStart}
@@ -191,58 +202,87 @@ export default function DeckView({
         onMouseUp={onMouseUp}
         onMouseLeave={() => { if (dragging) { setDragging(false); setDragX(0); } }}
       >
-        {/* Stack shadows — always visible for depth effect */}
-        <div
-          className="absolute inset-0 rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100 pointer-events-none"
-          style={{
-            transform: "scale(0.92) translateY(16px)",
-            opacity: 0.4,
-            zIndex: 1,
-          }}
-        />
-        <div
-          className="absolute inset-0 rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100 pointer-events-none"
-          style={{
-            transform: "scale(0.96) translateY(8px)",
-            opacity: 0.7,
-            zIndex: 2,
-          }}
-        />
+        {/* Render stack layers bottom-to-top (reverse so top card is last in DOM) */}
+        {stackIndices.map((cardIdx, layerPos) => {
+          const card = cards[cardIdx];
+          const layer = STACK_LAYERS[layerPos];
+          const isTop = layerPos === 0;
 
-        {/* Active card */}
-        <div
-          className="relative select-none"
-          style={{
-            transform: cardTransform,
-            opacity: cardOpacity,
-            transition: dragging ? "none" : "transform 250ms ease-out, opacity 250ms ease-out",
-            zIndex: 3,
-            cursor: dragging ? "grabbing" : "grab",
-          }}
-        >
-          <FlashcardItem
-            id={card.id.replace(/-imp$/, "")}
-            titolo={card.titolo}
-            testo={card.testo}
-            tag={card.tag}
-            difficolta={card.difficolta}
-            materia={card.materia}
-            dispensaId={card.dispensa_id}
-            inizialmenteImportante={card.importante ?? false}
-            inizialmenteSalvato={card.salvato ?? false}
-            imageUrl={card.image_url}
-            colore={card.colore}
-            onDeleted={onCardDeleted}
-            onTagClick={onTagClick}
-          />
-        </div>
+          // Compute styles for the top card (dragging / swiping)
+          let transform: string;
+          let opacity: number;
+          let transition: string;
+
+          if (isTop) {
+            // Top card: apply drag/swipe transforms
+            if (swipeDir === "left") {
+              transform = "translateX(-110%) scale(1)";
+              opacity = 0;
+              transition = "transform 250ms ease-out, opacity 250ms ease-out";
+            } else if (swipeDir === "right") {
+              transform = "translateX(110%) scale(1)";
+              opacity = 0;
+              transition = "transform 250ms ease-out, opacity 250ms ease-out";
+            } else if (dragging && dragX !== 0) {
+              transform = `translateX(${dragX}px) scale(1)`;
+              opacity = Math.max(0.3, 1 - Math.abs(dragX) / 500);
+              transition = "none";
+            } else {
+              transform = `translateX(0) scale(${layer.scale}) translateY(${layer.y}px)`;
+              opacity = layer.opacity;
+              transition = "transform 250ms ease-out, opacity 250ms ease-out";
+            }
+          } else {
+            // Background cards: when top card is swiping out, promote this layer up
+            const promoted = swipeDir !== null;
+            const targetLayer = promoted ? STACK_LAYERS[layerPos - 1] : layer;
+            transform = `scale(${targetLayer.scale}) translateY(${targetLayer.y}px)`;
+            opacity = targetLayer.opacity;
+            transition = "transform 250ms ease-out, opacity 250ms ease-out";
+          }
+
+          return (
+            <div
+              key={`layer-${layerPos}-${cardIdx}`}
+              className={`${isTop ? "relative" : "absolute inset-0"} select-none`}
+              style={{
+                transform,
+                opacity,
+                transition,
+                zIndex: 3 - layerPos,
+                cursor: isTop ? (dragging ? "grabbing" : "grab") : "default",
+                pointerEvents: isTop ? "auto" : "none",
+              }}
+            >
+              {card ? (
+                <FlashcardItem
+                  id={card.id.replace(/-imp$/, "")}
+                  titolo={card.titolo}
+                  testo={card.testo}
+                  tag={card.tag}
+                  difficolta={card.difficolta}
+                  materia={card.materia}
+                  dispensaId={card.dispensa_id}
+                  inizialmenteImportante={card.importante ?? false}
+                  inizialmenteSalvato={card.salvato ?? false}
+                  imageUrl={card.image_url}
+                  colore={card.colore}
+                  onDeleted={isTop ? onCardDeleted : undefined}
+                  onTagClick={isTop ? onTagClick : undefined}
+                />
+              ) : (
+                <CardSkeleton bgColor={lastColor} />
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Navigation buttons */}
       <div className="mt-4 flex items-center justify-center gap-6">
         <button
           onClick={goPrev}
-          disabled={currentIndex <= 0 || animating}
+          disabled={currentIndex <= 0 || swiping}
           className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-zinc-200 transition-all hover:bg-zinc-50 disabled:opacity-30 disabled:cursor-not-allowed"
           aria-label="Carta precedente"
         >
@@ -252,7 +292,7 @@ export default function DeckView({
         </button>
         <button
           onClick={goNext}
-          disabled={animating}
+          disabled={swiping}
           className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white shadow-md transition-all hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="Carta successiva"
         >
