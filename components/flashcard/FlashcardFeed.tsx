@@ -441,6 +441,10 @@ export default function FlashcardFeed({ dispensaId, savedMode }: { dispensaId?: 
       ) : viewMode === "deck" ? (
         <DeckView
           cards={cards}
+          total={total}
+          hasMore={hasMore}
+          onLoadMore={loadMore}
+          onRestart={handleRefresh}
           onCardDeleted={handleCardDeleted}
           onTagClick={handleTagClick}
         />
