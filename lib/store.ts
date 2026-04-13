@@ -120,6 +120,15 @@ export async function updateDispensaMateria(dispensaId: string, materia: string)
   if (error) throw new Error(`Errore aggiornamento materia: ${error.message}`);
 }
 
+export async function updateDispensaTitolo(dispensaId: string, titolo: string) {
+  const { error } = await db()
+    .from("dispense")
+    .update({ titolo })
+    .eq("id", dispensaId);
+
+  if (error) throw new Error(`Errore aggiornamento titolo: ${error.message}`);
+}
+
 export async function updateDispensaTags(dispensaId: string, tags: string[]) {
   const tagsValue = tags.length > 0 ? tags : null;
 

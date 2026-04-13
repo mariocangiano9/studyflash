@@ -55,6 +55,11 @@ export default function ArchivioPage() {
   const [materiaInput, setMateriaInput] = useState("");
   const [savingMateria, setSavingMateria] = useState(false);
 
+  // Titolo edit state
+  const [editingTitoloId, setEditingTitoloId] = useState<string | null>(null);
+  const [titoloInput, setTitoloInput] = useState("");
+  const [savingTitolo, setSavingTitolo] = useState(false);
+
   // Color picker state
   const [colorPickerOpen, setColorPickerOpen] = useState<string | null>(null);
 
@@ -230,6 +235,31 @@ export default function ArchivioPage() {
     }).catch(console.error);
   }
 
+  function openTitoloEdit(d: DispensaInfo) {
+    setEditingTitoloId(d.dispensaId);
+    setTitoloInput(d.titolo);
+  }
+
+  async function salvaTitolo(dispensaId: string) {
+    if (!titoloInput.trim() || savingTitolo) return;
+    setSavingTitolo(true);
+    try {
+      const res = await fetch(`/api/archivio/${dispensaId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ titolo: titoloInput.trim() }),
+      });
+      if (res.ok) {
+        setDispense((prev) =>
+          prev.map((d) => d.dispensaId === dispensaId ? { ...d, titolo: titoloInput.trim() } : d)
+        );
+      }
+    } finally {
+      setSavingTitolo(false);
+      setEditingTitoloId(null);
+    }
+  }
+
   function formatData(iso: string) {
     try {
       return new Date(iso).toLocaleDateString("it-IT", {
@@ -295,7 +325,30 @@ export default function ArchivioPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <h2 className="text-base font-bold text-zinc-900 leading-snug">{d.titolo}</h2>
+                      {editingTitoloId === d.dispensaId ? (
+                        <input
+                          autoFocus
+                          value={titoloInput}
+                          onChange={(e) => setTitoloInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") salvaTitolo(d.dispensaId);
+                            else if (e.key === "Escape") setEditingTitoloId(null);
+                          }}
+                          onBlur={() => salvaTitolo(d.dispensaId)}
+                          disabled={savingTitolo}
+                          className={`text-base font-bold text-zinc-900 leading-snug bg-transparent border-b-2 border-blue-400 outline-none min-w-0 flex-1 ${
+                            savingTitolo ? "opacity-50" : ""
+                          }`}
+                        />
+                      ) : (
+                        <h2
+                          onClick={() => openTitoloEdit(d)}
+                          className="text-base font-bold text-zinc-900 leading-snug cursor-pointer hover:text-blue-700 transition-colors"
+                          title="Clicca per modificare il titolo"
+                        >
+                          {d.titolo}
+                        </h2>
+                      )}
                       {/* Color picker trigger */}
                       <div className="relative">
                         <button
