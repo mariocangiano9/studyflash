@@ -4,10 +4,12 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const host = request.headers.get("host") || "";
 
-  // Force www redirect in production
+  // Force www redirect in production — escludi /api/login così il POST
+  // funziona su entrambi i domini senza perdere body/cookie nel 308
   if (
     host === "studyflash.net" &&
-    !pathname.startsWith("/_next")
+    !pathname.startsWith("/_next") &&
+    !pathname.startsWith("/api/login")
   ) {
     const url = request.nextUrl.clone();
     url.host = "www.studyflash.net";

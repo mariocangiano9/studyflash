@@ -19,7 +19,13 @@ export default function LoginPage() {
       });
 
       if (res.ok) {
-        router.push("/");
+        const data = await res.json().catch(() => ({}));
+        const target = data?.redirect || "/";
+        if (target.startsWith("http")) {
+          window.location.href = target;
+        } else {
+          router.push(target);
+        }
       } else {
         setShake(true);
         setTimeout(() => { setShake(false); setPin(""); }, 500);
